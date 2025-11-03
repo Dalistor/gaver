@@ -1,12 +1,3 @@
-# Binários
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-gaver
-gaver.exe
-
 # Test binaries
 *.test
 *.out
