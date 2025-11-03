@@ -1,0 +1,92 @@
+package main
+
+import (
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"{{.ProjectName}}/config/cors"
+	"{{.ProjectName}}/config/database"
+	"{{.ProjectName}}/config/env"
+	"{{.ProjectName}}/config/middlewares"
+	"{{.ProjectName}}/config/routines"
+
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	// Carregar variáveis de ambiente
+	env.Load()
+
+	// Conectar ao banco de dados
+	_, err := database.Connect()
+	if err != nil {
+		log.Fatalf("Erro ao conectar ao banco: %v", err)
+	}
+	defer database.Close()
+
+	log.Println("✓ Banco de dados conectado")
+
+	// Iniciar rotinas em background
+	routineManager := routines.NewManager()
+	routineManager.RegisterDefaultRoutines()
+	routineManager.Start()
+	defer routineManager.Stop()
+
+	// Configurar modo do Gin (release em produção)
+	if env.Get("ENV", "development") == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	// Criar router
+	router := gin.Default()
+
+	// Aplicar middlewares customizados
+	router.Use(cors.Middleware())
+	router.Use(middlewares.Logger())
+
+	// Rotas básicas
+	router.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "Bem-vindo ao {{.ProjectName}}!",
+			"version": "1.0.0",
+		})
+	})
+
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "ok",
+		})
+	})
+
+	// Grupo de rotas API
+	api := router.Group("/api/v1")
+	{
+		// Suas rotas aqui
+		api.GET("/ping", func(c *gin.Context) {
+			c.JSON(200, gin.H{
+				"message": "pong",
+			})
+		})
+	}
+
+	// Iniciar servidor em goroutine
+	port := env.Get("SERVER_PORT", "8080")
+	log.Printf("🚀 Servidor rodando em http://localhost:%s\n", port)
+	
+	go func() {
+		if err := router.Run(":" + port); err != nil {
+			log.Fatalf("Erro ao iniciar servidor: %v", err)
+		}
+	}()
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("\n🛑 Encerrando servidor...")
+	log.Println("✓ Servidor encerrado com sucesso")
+}
+

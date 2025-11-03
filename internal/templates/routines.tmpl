@@ -1,0 +1,181 @@
+package routines
+
+import (
+	"log"
+	"time"
+
+	"{{.ProjectName}}/config/database"
+)
+
+// Routine representa uma tarefa agendada
+type Routine struct {
+	Name     string
+	Interval time.Duration
+	Task     func()
+}
+
+// Manager gerencia todas as rotinas
+type Manager struct {
+	routines []Routine
+	stopChan chan bool
+}
+
+// NewManager cria um novo gerenciador de rotinas
+func NewManager() *Manager {
+	return &Manager{
+		routines: []Routine{},
+		stopChan: make(chan bool),
+	}
+}
+
+// Register registra uma nova rotina
+func (m *Manager) Register(name string, interval time.Duration, task func()) {
+	m.routines = append(m.routines, Routine{
+		Name:     name,
+		Interval: interval,
+		Task:     task,
+	})
+}
+
+// Start inicia todas as rotinas registradas
+func (m *Manager) Start() {
+	log.Println("🔄 Iniciando rotinas...")
+
+	for _, routine := range m.routines {
+		go m.runRoutine(routine)
+		log.Printf("  ✓ Rotina '%s' iniciada (executa a cada %v)\n", routine.Name, routine.Interval)
+	}
+}
+
+// Stop para todas as rotinas
+func (m *Manager) Stop() {
+	log.Println("🛑 Parando rotinas...")
+	close(m.stopChan)
+}
+
+// runRoutine executa uma rotina em loop
+func (m *Manager) runRoutine(routine Routine) {
+	ticker := time.NewTicker(routine.Interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			log.Printf("⏰ Executando rotina '%s'...", routine.Name)
+			
+			// Executa a tarefa com recuperação de panic
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("❌ Erro na rotina '%s': %v", routine.Name, r)
+					}
+				}()
+				routine.Task()
+			}()
+			
+		case <-m.stopChan:
+			log.Printf("Rotina '%s' parada", routine.Name)
+			return
+		}
+	}
+}
+
+// RegisterDefaultRoutines registra as rotinas padrão do sistema
+func (m *Manager) RegisterDefaultRoutines() {
+	// Exemplo 1: Limpeza de dados antigos a cada 24 horas
+	// m.Register("cleanup_old_data", 24*time.Hour, func() {
+	// 	log.Println("Limpando dados antigos...")
+	// 	
+	// 	// Exemplo: deletar registros com mais de 30 dias
+	// 	cutoffDate := time.Now().AddDate(0, 0, -30)
+	// 	result := database.DB.Where("created_at < ?", cutoffDate).Delete(&YourModel{})
+	// 	
+	// 	if result.Error != nil {
+	// 		log.Printf("Erro ao limpar dados: %v", result.Error)
+	// 		return
+	// 	}
+	// 	
+	// 	log.Printf("✓ %d registros antigos removidos", result.RowsAffected)
+	// })
+
+	// Exemplo 2: Sincronização de dados a cada 1 hora
+	// m.Register("sync_external_data", 1*time.Hour, func() {
+	// 	log.Println("Sincronizando dados externos...")
+	// 	
+	// 	// Exemplo: buscar dados de API externa
+	// 	// resp, err := http.Get("https://api.exemplo.com/data")
+	// 	// if err != nil {
+	// 	// 	log.Printf("Erro ao buscar dados: %v", err)
+	// 	// 	return
+	// 	// }
+	// 	// defer resp.Body.Close()
+	// 	
+	// 	// // Processar e salvar dados
+	// 	// // ...
+	// 	
+	// 	log.Println("✓ Sincronização concluída")
+	// })
+
+	// Exemplo 3: Envio de emails pendentes a cada 5 minutos
+	// m.Register("send_pending_emails", 5*time.Minute, func() {
+	// 	log.Println("Verificando emails pendentes...")
+	// 	
+	// 	var pendingEmails []Email
+	// 	err := database.DB.Where("status = ?", "pending").Limit(10).Find(&pendingEmails).Error
+	// 	
+	// 	if err != nil {
+	// 		log.Printf("Erro ao buscar emails: %v", err)
+	// 		return
+	// 	}
+	// 	
+	// 	for _, email := range pendingEmails {
+	// 		// Enviar email
+	// 		// err := SendEmail(email.To, email.Subject, email.Body)
+	// 		// if err == nil {
+	// 		// 	database.DB.Model(&email).Update("status", "sent")
+	// 		// }
+	// 	}
+	// 	
+	// 	log.Printf("✓ %d emails processados", len(pendingEmails))
+	// })
+
+	// Exemplo 4: Geração de relatórios diários às 00:00
+	// m.Register("daily_reports", 24*time.Hour, func() {
+	// 	log.Println("Gerando relatórios diários...")
+	// 	
+	// 	// Calcular estatísticas do dia anterior
+	// 	yesterday := time.Now().AddDate(0, 0, -1)
+	// 	startOfDay := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, yesterday.Location())
+	// 	endOfDay := startOfDay.Add(24 * time.Hour)
+	// 	
+	// 	var count int64
+	// 	database.DB.Model(&YourModel{}).
+	// 		Where("created_at BETWEEN ? AND ?", startOfDay, endOfDay).
+	// 		Count(&count)
+	// 	
+	// 	log.Printf("✓ Relatório gerado: %d novos registros no dia %s", count, yesterday.Format("02/01/2006"))
+	// })
+
+	// Exemplo 5: Verificação de saúde do sistema a cada 30 segundos
+	m.Register("health_check", 30*time.Second, func() {
+		// Verifica conexão com banco de dados
+		sqlDB, err := database.DB.DB()
+		if err != nil {
+			log.Printf("❌ Erro ao verificar banco: %v", err)
+			return
+		}
+		
+		if err := sqlDB.Ping(); err != nil {
+			log.Printf("❌ Banco de dados não está respondendo: %v", err)
+			return
+		}
+		
+		log.Println("✓ Sistema saudável")
+	})
+
+	// Adicione suas próprias rotinas aqui!
+	// m.Register("nome_da_rotina", intervalo, func() {
+	// 	// Seu código aqui
+	// })
+}
+

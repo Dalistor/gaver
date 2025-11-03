@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Dalistor/gaver/pkg/generator"
+	templates "github.com/Dalistor/gaver/internal/templates"
 )
 
 // CreateProjectFolders cria a estrutura de pastas do projeto
@@ -55,7 +55,7 @@ func GenerateInitialFiles(projectName, database string) error {
 		DatabaseUser:         getDatabaseUser(database),
 	}
 
-	gen := generator.NewGenerator("templates", projectName)
+	gen := templates.New(projectName)
 
 	// Gerar arquivos de config
 	files := map[string]string{

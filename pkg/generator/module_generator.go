@@ -2,6 +2,8 @@ package generator
 
 import (
 	"path/filepath"
+	
+	templates "github.com/Dalistor/gaver/internal/templates"
 )
 
 // ModuleGenerator gera código para módulos
@@ -20,7 +22,7 @@ func NewModuleGenerator(templatesPath, projectName string) *ModuleGenerator {
 
 // GenerateHandler gera um handler usando template
 func (g *ModuleGenerator) GenerateHandler(moduleName, modelName string, methods map[string]bool) error {
-	gen := NewGenerator(g.templatesPath, "modules")
+	gen := templates.New("modules")
 
 	data := ModuleHandlerData{
 		ProjectName:    g.projectName,
@@ -41,7 +43,7 @@ func (g *ModuleGenerator) GenerateHandler(moduleName, modelName string, methods 
 
 // GenerateService gera um service usando template
 func (g *ModuleGenerator) GenerateService(moduleName, modelName string, methods map[string]bool) error {
-	gen := NewGenerator(g.templatesPath, "modules")
+	gen := templates.New("modules")
 
 	data := ModuleServiceData{
 		ProjectName:    g.projectName,
@@ -61,7 +63,7 @@ func (g *ModuleGenerator) GenerateService(moduleName, modelName string, methods 
 
 // GenerateRepository gera um repository usando template
 func (g *ModuleGenerator) GenerateRepository(moduleName, modelName string, methods map[string]bool) error {
-	gen := NewGenerator(g.templatesPath, "modules")
+	gen := templates.New("modules")
 
 	data := ModuleRepositoryData{
 		ProjectName:    g.projectName,

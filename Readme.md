@@ -2,7 +2,7 @@
 
 > **Framework web completo para Go com CLI, geração de código e ORM estilo Django**
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0--beta-orange.svg)](https://github.com/Dalistor/gaver/releases)
 [![Status](https://img.shields.io/badge/status-beta-orange.svg)](https://github.com/Dalistor/gaver)
