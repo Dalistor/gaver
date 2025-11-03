@@ -1,0 +1,12 @@
+module {{.ProjectName}}
+
+go 1.24.3
+
+require (
+	github.com/gin-gonic/gin
+	github.com/joho/godotenv
+	gorm.io/gorm
+	{{.DatabaseDriverImport}}
+	
+)
+

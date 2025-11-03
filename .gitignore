@@ -1,0 +1,38 @@
+# Binários
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+gaver
+gaver.exe
+
+# Test binaries
+*.test
+*.out
+
+# Go workspace file
+go.work
+
+# Dependências
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporários
+*.tmp
+*.log
+
+# Projetos gerados pelo gaver
+# (descomente se não quiser comitar projetos de teste)
+# test-project/
+

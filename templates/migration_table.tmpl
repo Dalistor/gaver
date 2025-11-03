@@ -1,0 +1,178 @@
+package migrations
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"time"
+
+	"{{.ProjectName}}/config/database"
+	"gorm.io/gorm"
+)
+
+// Migration representa uma migration
+type Migration struct {
+	ID         int       `gorm:"primaryKey"`
+	Name       string    `gorm:"type:varchar(255);uniqueIndex"`
+	Batch      int
+	ExecutedAt time.Time `gorm:"autoCreateTime"`
+}
+
+// MigrationFile representa um arquivo de migration
+type MigrationFile struct {
+	ID       string
+	Name     string
+	FilePath string
+	SQL      string
+}
+
+// CreateMigrationsTable cria a tabela de controle de migrations
+func CreateMigrationsTable() error {
+	return database.DB.AutoMigrate(&Migration{})
+}
+
+// GetExecutedMigrations retorna migrations já executadas
+func GetExecutedMigrations() ([]Migration, error) {
+	var migrations []Migration
+	err := database.DB.Order("id ASC").Find(&migrations).Error
+	return migrations, err
+}
+
+// GetPendingMigrations retorna migrations pendentes
+func GetPendingMigrations(migrationsPath string) ([]MigrationFile, error) {
+	// Buscar migrations executadas
+	executed, err := GetExecutedMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	executedMap := make(map[string]bool)
+	for _, m := range executed {
+		executedMap[m.Name] = true
+	}
+
+	// Ler arquivos de migration
+	files, err := os.ReadDir(migrationsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var pending []MigrationFile
+	for _, file := range files {
+		if file.IsDir() || filepath.Ext(file.Name()) != ".sql" {
+			continue
+		}
+
+		name := file.Name()
+		if !executedMap[name] {
+			content, err := os.ReadFile(filepath.Join(migrationsPath, name))
+			if err != nil {
+				return nil, err
+			}
+
+			pending = append(pending, MigrationFile{
+				Name:     name,
+				FilePath: filepath.Join(migrationsPath, name),
+				SQL:      string(content),
+			})
+		}
+	}
+
+	// Ordenar por nome
+	sort.Slice(pending, func(i, j int) bool {
+		return pending[i].Name < pending[j].Name
+	})
+
+	return pending, nil
+}
+
+// Run executa migrations pendentes
+func Run(migrationsPath string) error {
+	// Criar tabela de migrations se não existir
+	if err := CreateMigrationsTable(); err != nil {
+		return fmt.Errorf("erro ao criar tabela de migrations: %w", err)
+	}
+
+	// Buscar migrations pendentes
+	pending, err := GetPendingMigrations(migrationsPath)
+	if err != nil {
+		return fmt.Errorf("erro ao buscar migrations: %w", err)
+	}
+
+	if len(pending) == 0 {
+		log.Println("Nenhuma migration pendente")
+		return nil
+	}
+
+	// Calcular próximo batch
+	var maxBatch int
+	database.DB.Raw("SELECT COALESCE(MAX(batch), 0) FROM migrations").Scan(&maxBatch)
+	nextBatch := maxBatch + 1
+
+	// Executar cada migration
+	for _, mig := range pending {
+		log.Printf("Executando migration: %s\n", mig.Name)
+
+		if err := executeMigration(mig, nextBatch); err != nil {
+			return fmt.Errorf("erro ao executar %s: %w", mig.Name, err)
+		}
+
+		log.Printf("✓ Migration %s executada com sucesso\n", mig.Name)
+	}
+
+	return nil
+}
+
+func executeMigration(mig MigrationFile, batch int) error {
+	// Executar SQL em transação
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		// Executar SQL
+		if err := tx.Exec(mig.SQL).Error; err != nil {
+			return err
+		}
+
+		// Registrar migration
+		return tx.Create(&Migration{
+			Name:  mig.Name,
+			Batch: batch,
+		}).Error
+	})
+}
+
+// Status mostra o status das migrations
+func Status(migrationsPath string) error {
+	executed, err := GetExecutedMigrations()
+	if err != nil {
+		return err
+	}
+
+	pending, err := GetPendingMigrations(migrationsPath)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("\n=== Status das Migrations ===\n")
+
+	fmt.Println("Executadas:")
+	if len(executed) == 0 {
+		fmt.Println("  (nenhuma)")
+	} else {
+		for _, m := range executed {
+			fmt.Printf("  ✓ %s (batch %d)\n", m.Name, m.Batch)
+		}
+	}
+
+	fmt.Println("\nPendentes:")
+	if len(pending) == 0 {
+		fmt.Println("  (nenhuma)")
+	} else {
+		for _, m := range pending {
+			fmt.Printf("  • %s\n", m.Name)
+		}
+	}
+
+	return nil
+}
+
