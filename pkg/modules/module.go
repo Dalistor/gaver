@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	templates "github.com/Dalistor/gaver/internal/templates"
 	"github.com/Dalistor/gaver/pkg/generator"
 	"github.com/Dalistor/gaver/pkg/parser"
-	templates "github.com/Dalistor/gaver/internal/templates"
 )
 
 // CreateModule cria a estrutura de pastas de um módulo
@@ -55,11 +55,11 @@ func CreateModule(moduleName string) error {
 
 func createModuleFile(basePath, moduleName string) error {
 	gen := templates.New(basePath)
-	
+
 	data := generator.ModuleInitData{
 		ModuleName: moduleName,
 	}
-	
+
 	return gen.Generate("module_init.tmpl", "module.go", data)
 }
 
@@ -87,12 +87,12 @@ func CreateModel(moduleName, modelName string, fields []string) error {
 
 	// Usar generator com template embarcado
 	gen := templates.New(filepath.Join("modules", moduleName, "models"))
-	
+
 	data := generator.ModuleModelData{
 		ModelName: modelName,
 		Fields:    modelFields,
 	}
-	
+
 	filename := toSnakeCase(modelName) + ".go"
 	return gen.Generate("module_model.tmpl", filename, data)
 }
