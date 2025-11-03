@@ -30,7 +30,9 @@ Ou clone e compile:
 ```bash
 git clone https://github.com/Dalistor/gaver.git
 cd gaver
-go build -o gaver cmd/gaver/main.go
+go build -o gaver ./cmd/gaver
+# ou
+go install ./cmd/gaver
 ```
 
 ## Quick Start

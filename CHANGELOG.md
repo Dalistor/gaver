@@ -16,6 +16,12 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [0.1.0-beta] - 2025-11-03
 
+### Instalação
+
+```bash
+go install github.com/Dalistor/gaver/cmd/gaver@latest
+```
+
 ### Adicionado
 
 #### Sistema de Modules
