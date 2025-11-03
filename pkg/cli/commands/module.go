@@ -52,20 +52,21 @@ func runModuleCreate(cmd *cobra.Command, args []string) error {
 	fmt.Println("  ├── validators/")
 	fmt.Println("  └── module.go")
 	fmt.Println("\nPróximos passos:")
-	fmt.Printf("  gaver module:model %s User name:string email:string\n", moduleName)
-	fmt.Printf("  gaver module:crud %s User\n", moduleName)
+	fmt.Printf("  gaver module model %s User\n", moduleName)
+	fmt.Printf("  # Edite modules/%s/models/user.go e adicione seus campos\n", moduleName)
+	fmt.Printf("  gaver module crud %s User\n", moduleName)
 
 	return nil
 }
 
 func newModuleModelCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "model [module] [ModelName] [fields...]",
-		Short: "Cria um model dentro de um módulo",
-		Long:  "Gera um arquivo de model com annotations gaverModel.",
-		Example: `  gaver module model users User name:string email:string:unique age:int
-  gaver module model products Product title:string price:float stock:int`,
-		Args: cobra.MinimumNArgs(2),
+		Use:   "model [module] [ModelName]",
+		Short: "Cria um model template dentro de um módulo",
+		Long:  "Gera um arquivo de model template com comentários explicativos sobre annotations gaverModel.",
+		Example: `  gaver module model users User
+  gaver module model products Product`,
+		Args: cobra.ExactArgs(2),
 		RunE: runModuleModel,
 	}
 }
@@ -73,18 +74,18 @@ func newModuleModelCommand() *cobra.Command {
 func runModuleModel(cmd *cobra.Command, args []string) error {
 	moduleName := args[0]
 	modelName := args[1]
-	fields := []string{}
-	if len(args) > 2 {
-		fields = args[2:]
-	}
 
-	fmt.Printf("Gerando model '%s' no módulo '%s'...\n", modelName, moduleName)
+	fmt.Printf("Gerando model template '%s' no módulo '%s'...\n", modelName, moduleName)
 
-	if err := modules.CreateModel(moduleName, modelName, fields); err != nil {
+	if err := modules.CreateModelTemplate(moduleName, modelName); err != nil {
 		return fmt.Errorf("erro ao criar model: %w", err)
 	}
 
-	fmt.Printf("✓ Model '%s' criado em modules/%s/models/%s.go\n", modelName, moduleName, toLower(modelName))
+	fmt.Printf("✓ Model template '%s' criado em modules/%s/models/%s.go\n", modelName, moduleName, toLower(modelName))
+	fmt.Println("\n📝 Próximos passos:")
+	fmt.Println("  1. Edite o arquivo e adicione seus campos")
+	fmt.Println("  2. Preencha as annotations gaverModel conforme necessário")
+	fmt.Println("  3. Execute: gaver module crud", moduleName, modelName)
 
 	return nil
 }

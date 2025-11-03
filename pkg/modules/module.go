@@ -63,38 +63,29 @@ func createModuleFile(basePath, moduleName string) error {
 	return gen.Generate("module_init.tmpl", "module.go", data)
 }
 
-// CreateModel cria um arquivo de model com annotations
-func CreateModel(moduleName, modelName string, fields []string) error {
+// CreateModelTemplate cria um arquivo de model template para o usuário preencher
+func CreateModelTemplate(moduleName, modelName string) error {
 	// Verificar se módulo existe
 	if _, err := os.Stat(filepath.Join("modules", moduleName)); os.IsNotExist(err) {
 		return fmt.Errorf("módulo '%s' não existe. Use 'gaver module create %s' primeiro", moduleName, moduleName)
 	}
-
-	// Parsear campos
-	parsedFields := parseFields(fields)
-
-	// Converter para ModelFieldData
-	modelFields := make([]generator.ModelFieldData, len(parsedFields))
-	for i, field := range parsedFields {
-		modelFields[i] = generator.ModelFieldData{
-			Name:       field.Name,
-			Type:       field.Type,
-			JSONTag:    toSnakeCase(field.Name),
-			GORMTag:    generateGORMTag(field),
-			Annotation: generateAnnotation(field),
-		}
-	}
-
+	
 	// Usar generator com template embarcado
 	gen := templates.New(filepath.Join("modules", moduleName, "models"))
-
-	data := generator.ModuleModelData{
+	
+	// Calcular nome da tabela
+	tableName := toSnakeCase(pluralize(modelName))
+	
+	data := struct {
+		ModelName string
+		TableName string
+	}{
 		ModelName: modelName,
-		Fields:    modelFields,
+		TableName: tableName,
 	}
-
+	
 	filename := toSnakeCase(modelName) + ".go"
-	return gen.Generate("module_model.tmpl", filename, data)
+	return gen.Generate("module_model_template.tmpl", filename, data)
 }
 
 // CreateCRUD gera handlers, services e repositories lendo o model existente
