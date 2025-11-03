@@ -4,11 +4,18 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0--beta-orange.svg)](https://github.com/seu-usuario/gaver/releases)
+[![Version](https://img.shields.io/badge/version-0.1.0--beta-orange.svg)](https://github.com/Dalistor/gaver/releases)
+[![Status](https://img.shields.io/badge/status-beta-orange.svg)](https://github.com/Dalistor/gaver)
 
-## 📋 Status: Beta Testing
+## 📋 Status: Beta Testing (Long-Term)
 
-Este projeto está em **fase beta**. A API pode sofrer alterações até a versão 1.0.0.
+⚠️ **Este projeto está em fase beta ativa e continuará assim por vários meses.**
+
+A API pode sofrer alterações significativas até a versão 1.0.0. Use para desenvolvimento e testes, mas **não recomendado para produção** ainda.
+
+**Estimativa:** Beta phase de 6-12 meses até versão estável (v1.0.0 em Q2 2027).
+
+👉 **[LEIA O AVISO COMPLETO SOBRE BETA](BETA-WARNING.md)** antes de usar!
 
 ## ✨ Funcionalidades
 
@@ -272,27 +279,91 @@ Contribuições são muito bem-vindas! Este projeto está em beta e qualquer fee
 4. Push para a branch (`git push origin feature/NovaFeature`)
 5. Abra um Pull Request
 
-## 📝 Roadmap
+## 📝 Roadmap Detalhado
 
-### v0.1.0-beta (Atual)
-- [x] CLI básico
+### v0.1.0-beta (Atual) ✅
+**Release:** Nov 2025 | **Status:** Lançado
+
+- [x] CLI básico com Cobra
 - [x] Sistema de modules
-- [x] Geração de CRUD
+- [x] Geração de CRUD automático
 - [x] Annotations gaverModel
-- [x] Migrations
+- [x] Migrations (makemigrations/migrate)
+- [x] Callbacks Before/After
+- [x] Validações básicas
+- [x] Sistema de rotinas
 
-### v0.2.0-beta (Próximo)
-- [ ] QuerySet estilo Django
-- [ ] Admin interface
-- [ ] Autenticação JWT
-- [ ] WebSockets
-- [ ] Testes automatizados
+### v0.2.0-beta (Q1 2026)
+**Foco:** ORM e Validações
 
-### v1.0.0 (Estável)
-- [ ] Documentação completa
+- [ ] QuerySet API completo estilo Django
+  - [ ] Filter, Exclude, All, First, Count
+  - [ ] Order By, Limit, Offset
+  - [ ] Joins automáticos
+- [ ] Validações avançadas
+  - [ ] Custom validators
+  - [ ] Cross-field validation
+- [ ] Relacionamentos completos
+  - [ ] HasOne, HasMany, BelongsTo
+  - [ ] ManyToMany com through tables
+- [ ] Testes unitários (50% coverage)
+
+### v0.3.0-beta (Q2 2026)
+**Foco:** Developer Experience
+
+- [ ] Documentação expandida
+- [ ] Exemplos de projetos completos
+- [ ] Hot reload em desenvolvimento
+- [ ] Melhor error handling
+- [ ] CLI com cores e progress bars
+- [ ] Comando `gaver shell` (console interativo)
+- [ ] Testes de integração
+
+### v0.4.0-beta (Q3 2026)
+**Foco:** Features Avançadas
+
+- [ ] Autenticação JWT integrada
+- [ ] Permissions e ACL
+- [ ] WebSockets support
+- [ ] GraphQL opcional
+- [ ] Cache layer (Redis)
+- [ ] Rate limiting avançado
+
+### v0.5.0-beta (Q4 2026)
+**Foco:** Produção-Ready
+
+- [ ] Admin interface web
+- [ ] Monitoring e metrics
+- [ ] Logging estruturado
+- [ ] Docker support
+- [ ] CI/CD templates
 - [ ] Cobertura de testes 80%+
-- [ ] API estável
-- [ ] Exemplos completos
+
+### v0.9.0-beta (Q1 2027)
+**Feature Freeze - Preparação para v1.0**
+
+- [ ] API congelada
+- [ ] Bug fixes apenas
+- [ ] Performance tuning
+- [ ] Security audit
+- [ ] Documentação final
+- [ ] Migration guide
+
+### v1.0.0 (Q2 2027 - Estimado)
+**Primeira Versão Estável**
+
+Critérios para lançamento:
+- [ ] Zero bugs críticos
+- [ ] API estável por 3+ meses sem breaking changes
+- [ ] Cobertura de testes 85%+
+- [ ] Documentação completa
+- [ ] 100+ projetos usando em desenvolvimento
+- [ ] Performance benchmarks publicados
+- [ ] Security review completo
+
+---
+
+**Timeline sujeito a mudanças baseado em feedback da comunidade**
 
 ## 📄 Licença
 

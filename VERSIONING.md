@@ -1,8 +1,12 @@
 # 📌 Guia de Versionamento - Gaver Framework
 
-## 🎯 Versão Atual: `v0.1.0-beta.1`
+## 🎯 Versão Atual: `v0.1.0-beta`
 
 Este documento explica como funciona o versionamento do Gaver Framework.
+
+**Fase:** Beta Testing (Long-Term)
+**Duração Estimada:** 6-12 meses
+**Versão Estável Prevista:** v1.0.0 em Q2 2027
 
 ## 📋 Semantic Versioning
 
@@ -18,17 +22,27 @@ Exemplo: `v1.2.3-beta.1`
 
 ## 🏷️ Tags de Pré-Lançamento
 
-### Beta (Fase Atual)
+### Beta (Fase Atual - Long-Term)
 ```
-v0.1.0-beta.1    # Primeira versão beta
-v0.1.0-beta.2    # Segunda versão beta (correções)
-v0.2.0-beta.1    # Nova feature em beta
+v0.1.0-beta      # Core framework (atual)
+v0.2.0-beta      # QuerySet e validações
+v0.3.0-beta      # Developer experience
+v0.4.0-beta      # Features avançadas
+v0.5.0-beta      # Produção-ready features
+v0.9.0-beta      # Feature freeze
 ```
 
 **Características:**
-- ⚠️ API pode mudar
-- 🧪 Para testes e feedback
-- ❌ Não use em produção
+- ⚠️ API pode mudar entre versões
+- 🧪 Para testes, desenvolvimento e feedback
+- ❌ Não recomendado para produção
+- 📊 Versionamento por features, não por patches
+- 🔄 Breaking changes permitidos entre minor versions
+
+**Política de Breaking Changes:**
+- Permitido entre v0.x.0-beta e v0.y.0-beta
+- Documentado no CHANGELOG
+- Anunciado com antecedência quando possível
 
 ### Alpha (Desenvolvimento Inicial)
 ```
@@ -50,47 +64,55 @@ v1.1.1           # Bug fix
 v2.0.0           # Breaking change
 ```
 
-## 🚀 Como Criar uma Nova Versão
+## 🚀 Como Criar uma Nova Versão Beta
 
-### 1. Atualizar VERSION
+### Para Nova Feature (Minor Version)
+
 ```bash
-echo "0.1.0-beta.2" > VERSION
-```
+# 1. Implementar features
 
-### 2. Atualizar CHANGELOG.md
-```markdown
-## [0.1.0-beta.2] - 2025-11-04
+# 2. Atualizar VERSION
+echo "0.2.0-beta" > VERSION
 
+# 3. Atualizar CHANGELOG.md
+# Adicionar nova seção:
+## [0.2.0-beta] - 2026-02-XX
 ### Adicionado
-- Nova funcionalidade X
-
+- QuerySet API completo
+- Validações cross-field
+### Mudanças
+- Breaking: Alterada estrutura de callbacks
 ### Corrigido
-- Bug Y corrigido
-```
+- 15 bugs diversos
 
-### 3. Commit das mudanças
-```bash
-git add VERSION CHANGELOG.md
-git commit -m "chore: bump version to v0.1.0-beta.2"
-```
+# 4. Commit
+git add .
+git commit -m "feat: release v0.2.0-beta
 
-### 4. Criar tag Git
-```bash
-# Criar tag anotada (recomendado)
-git tag -a v0.1.0-beta.2 -m "Release v0.1.0-beta.2
-
-- Nova funcionalidade X
-- Bug Y corrigido
+- QuerySet API
+- Validações avançadas
+- Breaking changes documentados no CHANGELOG
 "
 
-# Push da tag
-git push origin v0.1.0-beta.2
+# 5. Criar tag
+git tag -a v0.2.0-beta -m "v0.2.0-beta - QuerySet e Validações"
+
+# 6. Push
+git push origin main
+git push origin v0.2.0-beta
 ```
 
-### 5. Push do código
+### Para Bug Fix Crítico (Patch - Raro)
+
 ```bash
-git push origin main
+# Apenas para bugs que impedem uso
+echo "0.1.1-beta" > VERSION
+git commit -m "fix: corrige bug crítico X"
+git tag -a v0.1.1-beta -m "Hotfix crítico"
+git push origin main v0.1.1-beta
 ```
+
+**Nota:** Preferimos acumular fixes para próxima versão minor.
 
 ## 📦 Publicação
 
@@ -101,45 +123,78 @@ git push origin main
 git status
 
 # 2. Crie a tag beta
-git tag -a v0.1.0-beta.1 -m "Initial beta release"
+git tag -a v0.1.0-beta -m "Initial beta release
+
+Core framework functionality:
+- Module system
+- CRUD generation
+- Annotations gaverModel
+- Smart migrations
+- Gin integration
+- Scheduled routines
+"
 
 # 3. Push tudo
 git push origin main
-git push origin v0.1.0-beta.1
+git push origin v0.1.0-beta
 ```
 
 ### Usuários podem instalar com:
 
 ```bash
-# Última versão beta
+# Última versão (sempre beta durante desenvolvimento)
 go install github.com/Dalistor/gaver/cmd/gaver@latest
 
 # Versão específica
-go install github.com/Dalistor/gaver/cmd/gaver@v0.1.0-beta.1
+go install github.com/Dalistor/gaver/cmd/gaver@v0.1.0-beta
+
+# Versão mais recente beta
+go install github.com/Dalistor/gaver/cmd/gaver@v0.5.0-beta
 ```
+
+### Política de @latest Durante Beta
+
+Durante a fase beta, `@latest` sempre apontará para a versão beta mais recente:
+- Agora: `@latest` = `v0.1.0-beta`
+- Futuro: `@latest` = `v0.5.0-beta`
+- Após v1.0.0: `@latest` = versão estável mais recente
 
 ## 🔄 Ciclo de Desenvolvimento
 
-### Durante Beta (v0.x.x-beta)
+### Durante Beta (v0.x.0-beta) - Simplificado
 
-1. **Bug fix**: Incrementa último número
-   - `v0.1.0-beta.1` → `v0.1.0-beta.2`
+**Versionamento por Features (não por patches):**
 
-2. **Nova feature**: Incrementa MINOR
-   - `v0.1.0-beta.1` → `v0.2.0-beta.1`
+1. **Qualquer mudança**: Nova versão beta
+   - `v0.1.0-beta` → `v0.2.0-beta` (nova feature)
+   - `v0.2.0-beta` → `v0.3.0-beta` (mais features)
 
-3. **Breaking change**: OK durante beta
-   - `v0.1.0-beta.1` → `v0.2.0-beta.1`
+2. **Breaking changes**: Permitidos e documentados
+   - `v0.3.0-beta` → `v0.4.0-beta` (pode ter breaking changes)
 
-### Quando sair do Beta
+3. **Bug fixes críticos**: Podem gerar releases pontuais
+   - `v0.1.0-beta` → `v0.1.1-beta` (apenas se crítico)
+   - Mas preferimos acumular fixes para próxima versão
 
-```bash
-# Remover sufixo -beta
-v0.1.0-beta.5 → v0.1.0 (primeira versão estável)
+**Filosofia:**
+- Menos releases, mais features por release
+- Breaking changes bem documentados
+- Feedback da comunidade guia desenvolvimento
 
-# Ou ir direto para v1.0.0
-v0.5.0-beta.3 → v1.0.0 (lançamento oficial)
+### Timeline de Saída do Beta
+
 ```
+v0.1.0-beta   Nov 2025  ← VOCÊ ESTÁ AQUI
+v0.2.0-beta   Q1 2026   (3-4 meses)
+v0.3.0-beta   Q2 2026   (3-4 meses)
+v0.4.0-beta   Q3 2026   (3-4 meses)
+v0.5.0-beta   Q4 2026   (3-4 meses)
+v0.9.0-beta   Q1 2027   (feature freeze)
+v1.0.0-rc.1   Q1 2027   (release candidate)
+v1.0.0        Q2 2027   (ESTÁVEL!)
+```
+
+**Total:** ~12-18 meses em beta
 
 ### Após v1.0.0 (Produção)
 
@@ -208,16 +263,25 @@ test: adiciona testes para validator
 chore: atualiza dependências
 ```
 
-## 🎯 Roadmap de Versões
+## 🎯 Roadmap de Versões Planejado
 
 ```
-v0.1.0-beta.1  ← VOCÊ ESTÁ AQUI
-v0.1.0-beta.2  (correções de bugs)
-v0.2.0-beta.1  (novas features)
-v0.3.0-beta.1  (mais features)
-v1.0.0-rc.1    (release candidate)
-v1.0.0         (primeira versão estável!)
+Nov 2025    v0.1.0-beta   ← VOCÊ ESTÁ AQUI (Core Framework)
+Q1 2026     v0.2.0-beta   (QuerySet & Validations)
+Q2 2026     v0.3.0-beta   (DX & Examples)
+Q3 2026     v0.4.0-beta   (Advanced Features)
+Q4 2026     v0.5.0-beta   (Production-Ready)
+Q1 2027     v0.9.0-beta   (Feature Freeze)
+Q1 2027     v1.0.0-rc.1   (Release Candidate)
+Q2 2027     v1.0.0        (STABLE!)
 ```
+
+**Observações:**
+- Timeline é flexível baseado em feedback
+- Breaking changes permitidos entre versões beta
+- Cada versão beta pode levar 3-4 meses
+- RC phase pode ter múltiplas versões (rc.1, rc.2, etc)
+- v1.0.0 só será lançada quando realmente estável
 
 ## 🔗 Links Úteis
 

@@ -7,7 +7,14 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
-## [0.1.0-beta.1] - 2025-11-03
+### Planejado para próximas versões beta
+- QuerySet API estilo Django
+- Testes automatizados completos
+- Documentação expandida
+- Exemplos de projetos completos
+- Melhorias de performance
+
+## [0.1.0-beta] - 2025-11-03
 
 ### Adicionado
 
@@ -70,16 +77,36 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## Notas de Versionamento
 
-### Versões Beta (0.x.x-beta)
-- API pode mudar sem aviso
-- Use para testes e feedback
-- Não recomendado para produção
+### Fase Beta (0.x.x-beta) - Esperado: 6-12 meses
+Durante a fase beta:
+- ⚠️ API pode mudar sem aviso
+- 🧪 Use para testes e desenvolvimento
+- ❌ Não recomendado para produção
+- 💬 Feedback é essencial
+- 🐛 Bugs esperados
 
-### Versão 1.0.0
-- API estável
-- Retrocompatibilidade garantida
-- Pronto para produção
+### Versões Planejadas
 
-[Unreleased]: https://github.com/seu-usuario/gaver/compare/v0.1.0-beta.1...HEAD
-[0.1.0-beta.1]: https://github.com/seu-usuario/gaver/releases/tag/v0.1.0-beta.1
+**Beta Phases:**
+- `v0.1.0-beta` - Core framework (atual)
+- `v0.2.0-beta` - QuerySet e validações avançadas
+- `v0.3.0-beta` - Testes e exemplos
+- `v0.4.0-beta` - Performance e otimizações
+- `v0.5.0-beta` - Features avançadas
+- `v0.9.0-beta` - Feature freeze
+- `v1.0.0-rc.1` - Release candidate
+
+**Stable:**
+- `v1.0.0` - Primeira versão estável (quando API estiver madura)
+
+### Critérios para v1.0.0
+- [ ] API estável sem breaking changes por 2+ meses
+- [ ] Cobertura de testes 80%+
+- [ ] Documentação completa
+- [ ] 50+ usuários usando em desenvolvimento
+- [ ] Performance validada
+- [ ] Zero bugs críticos conhecidos
+
+[Unreleased]: https://github.com/Dalistor/gaver/compare/v0.1.0-beta...HEAD
+[0.1.0-beta]: https://github.com/Dalistor/gaver/releases/tag/v0.1.0-beta
 
