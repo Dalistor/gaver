@@ -19,6 +19,8 @@ func CreateProjectFolders(projectName string) error {
 		filepath.Join(projectName, "config", "database"),
 		filepath.Join(projectName, "config", "database", "migrations"),
 		filepath.Join(projectName, "config", "routines"),
+		filepath.Join(projectName, "config", "routes"),
+		filepath.Join(projectName, "config", "modules"),
 		filepath.Join(projectName, "modules"),
 		filepath.Join(projectName, "migrations"),
 	}
@@ -65,6 +67,8 @@ func GenerateInitialFiles(projectName, database string) error {
 		"config_database.tmpl":    "config/database/database.go",
 		"migration_table.tmpl":    "config/database/migrations/migrations.go",
 		"routines.tmpl":           "config/routines/routines.go",
+		"config_routes.tmpl":      "config/routes/routes.go",
+		"config_modules.tmpl":     "config/modules/modules.go",
 		"main.tmpl":               "cmd/server/main.go",
 		"env.tmpl":                ".env",
 		"go_mod.tmpl":             "go.mod",

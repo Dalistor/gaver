@@ -139,6 +139,12 @@ func CreateCRUD(moduleName, modelName string, only, except []string) error {
 		return fmt.Errorf("erro ao atualizar rotas: %w", err)
 	}
 
+	// Registrar módulo em config/modules/modules.go
+	if err := registerModuleInConfig(moduleName); err != nil {
+		fmt.Printf("⚠️  Aviso: Adicione manualmente o módulo em config/modules/modules.go\n")
+		fmt.Printf("    registry.Register(\"%s\", %s.NewModule())\n", moduleName, moduleName)
+	}
+
 	return nil
 }
 
@@ -358,7 +364,7 @@ func generateRoutesCode(moduleName, modelName string, methods map[string]bool) s
 	modelLower := toLower(modelName)
 	handlerVar := modelLower + "Handler"
 
-	code.WriteString("\t// Inicializar handler\n")
+	code.WriteString("\t// Inicializar " + modelName + " handler\n")
 	code.WriteString(fmt.Sprintf("\t%sRepo := repositories.New%sRepository()\n", modelLower, modelName))
 	code.WriteString(fmt.Sprintf("\t%sService := services.New%sService(%sRepo)\n", modelLower, modelName, modelLower))
 	code.WriteString(fmt.Sprintf("\t%s := handlers.New%sHandler(%sService)\n\n", handlerVar, modelName, modelLower))
@@ -388,6 +394,12 @@ func generateRoutesCode(moduleName, modelName string, methods map[string]bool) s
 }
 
 func replaceRoutesFunction(content, routesCode string) string {
+	// Primeiro, adicionar imports necessários
+	projectName, moduleName := extractModuleInfo(content)
+	content = ensureImport(content, projectName+"/modules/"+moduleName+"/handlers")
+	content = ensureImport(content, projectName+"/modules/"+moduleName+"/services")
+	content = ensureImport(content, projectName+"/modules/"+moduleName+"/repositories")
+
 	// Encontrar função RegisterRoutes e substituir conteúdo
 	startMarker := "func (m *Module) RegisterRoutes(router *gin.RouterGroup) {"
 
@@ -418,15 +430,14 @@ func replaceRoutesFunction(content, routesCode string) string {
 }
 
 func addRoutesFunction(content, routesCode string) string {
+	// Extrair nome do módulo e projeto
+	projectName, moduleName := extractModuleInfo(content)
+
 	// Adicionar imports necessários se não existirem
-	if !strings.Contains(content, "\"github.com/gin-gonic/gin\"") {
-		// Adicionar import do gin
-		importIdx := strings.Index(content, "import (")
-		if importIdx != -1 {
-			insertPoint := importIdx + len("import (") + 1
-			content = content[:insertPoint] + "\t\"github.com/gin-gonic/gin\"\n" + content[insertPoint:]
-		}
-	}
+	content = ensureImport(content, "github.com/gin-gonic/gin")
+	content = ensureImport(content, projectName+"/modules/"+moduleName+"/handlers")
+	content = ensureImport(content, projectName+"/modules/"+moduleName+"/services")
+	content = ensureImport(content, projectName+"/modules/"+moduleName+"/repositories")
 
 	// Adicionar função RegisterRoutes antes do último }
 	lastBrace := strings.LastIndex(content, "}")
@@ -439,6 +450,56 @@ func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
 `, routesCode)
 		content = content[:lastBrace] + routesFunc + "\n" + content[lastBrace:]
 	}
+
+	return content
+}
+
+func extractModuleInfo(content string) (projectName, moduleName string) {
+	// Extrair package name (nome do módulo)
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "package ") {
+			moduleName = strings.TrimSpace(strings.TrimPrefix(line, "package "))
+			break
+		}
+	}
+
+	// Extrair project name do go.mod
+	projectName, _ = getProjectName()
+	if projectName == "" {
+		projectName = "gaver-project"
+	}
+
+	return projectName, moduleName
+}
+
+func ensureImport(content, importPath string) string {
+	// Se já tem o import não comentado, retorna sem modificar
+	checkImport := "\"" + importPath + "\""
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, checkImport) && !strings.HasPrefix(trimmed, "//") {
+			return content
+		}
+	}
+
+	// Encontrar bloco de imports
+	importIdx := strings.Index(content, "import (")
+	if importIdx == -1 {
+		return content
+	}
+
+	// Encontrar o fim do bloco de imports
+	closeParenIdx := strings.Index(content[importIdx:], ")")
+	if closeParenIdx == -1 {
+		return content
+	}
+	closeParenIdx += importIdx
+
+	// Inserir antes do )
+	newImport := "\t\"" + importPath + "\"\n"
+	content = content[:closeParenIdx] + newImport + content[closeParenIdx:]
 
 	return content
 }
@@ -475,4 +536,63 @@ func toSnakeCase(s string) string {
 		result.WriteRune(r)
 	}
 	return strings.ToLower(result.String())
+}
+
+// registerModuleInConfig adiciona o módulo em config/modules/modules.go
+func registerModuleInConfig(moduleName string) error {
+	configFile := filepath.Join("config", "modules", "modules.go")
+
+	// Ler arquivo existente
+	content, err := os.ReadFile(configFile)
+	if err != nil {
+		return err
+	}
+
+	contentStr := string(content)
+
+	// Obter nome do projeto
+	projectName, err := getProjectName()
+	if err != nil {
+		return err
+	}
+
+	// Adicionar import do módulo
+	moduleImport := projectName + "/modules/" + moduleName
+	contentStr = ensureImport(contentStr, moduleImport)
+
+	// Adicionar registro do módulo na função RegisterModules
+	registerLine := fmt.Sprintf("\tregistry.Register(\"%s\", %s.NewModule())\n", moduleName, moduleName)
+
+	// Procurar pela função RegisterModules
+	marker := "func RegisterModules(registry *routes.Registry) {"
+	markerIdx := strings.Index(contentStr, marker)
+
+	if markerIdx != -1 {
+		// Encontrar onde inserir (depois do comentário inicial)
+		insertPoint := markerIdx + len(marker)
+
+		// Pular linhas de comentário
+		lines := strings.Split(contentStr[insertPoint:], "\n")
+		skipLines := 0
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "//") {
+				skipLines = i + 1
+				continue
+			}
+			break
+		}
+
+		// Inserir após os comentários
+		insertPoint += len(strings.Join(lines[:skipLines], "\n"))
+		if skipLines > 0 {
+			insertPoint += 1 // newline
+		}
+
+		actualInsertPoint := markerIdx + len(marker) + insertPoint - markerIdx - len(marker)
+		contentStr = contentStr[:actualInsertPoint] + "\n" + registerLine + contentStr[actualInsertPoint:]
+	}
+
+	// Salvar arquivo atualizado
+	return os.WriteFile(configFile, []byte(contentStr), 0644)
 }

@@ -1,175 +1,140 @@
-# 🚀 Gaver Framework
+# Gaver Framework
 
-> **Framework web completo para Go com CLI, geração de código e ORM estilo Django**
+> Framework web para Go com CLI, geração de código e ORM estilo Django
 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0--beta-orange.svg)](https://github.com/Dalistor/gaver/releases)
-[![Status](https://img.shields.io/badge/status-beta-orange.svg)](https://github.com/Dalistor/gaver)
 
-## 📋 Status: Beta Testing (Long-Term)
+**Versão Atual:** `v0.1.0-beta` (Beta Testing)
 
-⚠️ **Este projeto está em fase beta ativa e continuará assim por vários meses.**
+⚠️ **Projeto em fase beta.** API pode sofrer alterações. Não recomendado para produção.
 
-A API pode sofrer alterações significativas até a versão 1.0.0. Use para desenvolvimento e testes, mas **não recomendado para produção** ainda.
-
-**Estimativa:** Beta phase de 6-12 meses até versão estável (v1.0.0 em Q2 2027).
-
-👉 **[LEIA O AVISO COMPLETO SOBRE BETA](BETA-WARNING.md)** antes de usar!
-
-## ✨ Funcionalidades
-
-- 🎯 **CLI completo** com comandos intuitivos
-- 📦 **Sistema de Modules** organizados e reutilizáveis
-- 🔖 **Annotations gaverModel** para validações e controle de campos
-- 🔄 **CRUD automático** com callbacks personalizáveis (Before/After)
-- 📊 **Migrations inteligentes** - detecta mudanças automaticamente
-- 🗄️ **ORM sobre GORM** - suporta MySQL, PostgreSQL, SQLite
-- 🌐 **Framework HTTP** com Gin
-- ⚙️ **Sistema de Rotinas** para tarefas agendadas
-- 🔐 **Middlewares** prontos (CORS, Auth, Logger)
-
-## 🚀 Instalação
-
-### Opção 1: Via `go install` (Recomendado quando publicado)
+## Instalação
 
 ```bash
 go install github.com/Dalistor/gaver/cmd/gaver@latest
 ```
 
-### Opção 2: Build Manual (Beta Testing)
+## Início Rápido
 
 ```bash
-git clone https://github.com/Dalistor/gaver.git
-cd gaver
-go build -o gaver cmd/gaver/main.go
-```
-
-## 📚 Guia Rápido
-
-### 1. Criar Projeto
-
-```bash
-gaver init meu-projeto -d mysql
-cd meu-projeto
+# Criar projeto
+gaver init meu-app -d mysql
+cd meu-app
 go mod tidy
-```
 
-### 2. Criar Módulo
-
-```bash
+# Criar módulo
 gaver module create users
+
+# Criar model
+gaver module model users User name:string email:string:unique age:int
+
+# Gerar CRUD completo
+gaver module crud users User
+
+# Migrations
+gaver makemigrations
+gaver migrate up
+
+# Rodar servidor
+gaver serve
 ```
 
-### 3. Criar Model com Annotations
+Servidor em: `http://localhost:8080`
 
+## Funcionalidades
+
+- 🎯 **CLI completo** - Geração automática de código
+- 📦 **Sistema de Modules** - Organize por domínios
+- 🔖 **Annotations gaverModel** - Controle validações e permissões
+- 🔄 **CRUD automático** - Handlers, services e repositories
+- 📊 **Migrations inteligentes** - Detecta mudanças automaticamente
+- 🗄️ **Multi-database** - MySQL, PostgreSQL, SQLite
+- 🌐 **Gin Framework** - HTTP rápido e simples
+- ⚙️ **Rotinas agendadas** - Tarefas em background
+
+## Comandos
+
+### Projeto
 ```bash
-gaver module:model users User name:string email:string:unique age:int
+gaver init <nome> [-d mysql|postgres|sqlite]  # Criar projeto
+gaver serve [-p porta]                        # Rodar servidor
 ```
 
-Isso gera `modules/users/models/user.go`:
+### Modules
+```bash
+gaver module create <nome>                    # Criar módulo
+gaver module model <module> <Model> [campos]  # Criar model
+gaver module crud <module> <Model>            # Gerar CRUD
+  --only=list,get                            # Apenas métodos específicos
+  --except=delete                            # Excluir métodos
+```
+
+### Migrations
+```bash
+gaver makemigrations [-n nome]     # Detectar mudanças
+gaver migrate up                   # Aplicar migrations
+gaver migrate down                 # Reverter migrations
+gaver migrate status               # Ver status
+```
+
+## Annotations gaverModel
+
+Controle campos do model com annotations:
 
 ```go
 type User struct {
     // gaverModel: primaryKey; autoIncrement
     ID uint `json:"id" gorm:"primaryKey"`
-
-    // gaverModel: writable:post,put,patch; readable
+    
+    // gaverModel: writable:post,put; readable; required; minLength:3
     Name string `json:"name"`
-
-    // gaverModel: writable:post,put,patch; readable; unique
-    Email string `json:"email" gorm:"uniqueIndex"`
-
+    
+    // gaverModel: writable:post; readable; required; unique; email
+    Email string `json:"email"`
+    
+    // gaverModel: writable:post,put,patch; readable; min:18; max:120
+    Age int `json:"age"`
+    
     // gaverModel: ignore:write; readable
-    CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-}
-```
-
-### 4. Gerar CRUD Completo
-
-```bash
-gaver module:crud users User
-```
-
-Isso gera:
-- ✅ Handler com callbacks Before/After
-- ✅ Service com lógica de negócio
-- ✅ Repository para acesso a dados
-- ✅ Rotas registradas automaticamente
-
-### 5. Migrations
-
-```bash
-# Detectar mudanças e gerar migration
-gaver makemigrations --name create_users
-
-# Aplicar migrations
-gaver migrate up
-
-# Ver status
-gaver migrate status
-```
-
-### 6. Rodar Servidor
-
-```bash
-go run cmd/server/main.go
-```
-
-Servidor rodando em `http://localhost:8080`
-
-## 🎯 Annotations gaverModel
-
-Controle total sobre seus models com annotations:
-
-```go
-type Product struct {
-    // Controle de acesso
-    // gaverModel: writable:post,put; readable; required
-    Title string `json:"title"`
+    CreatedAt time.Time `json:"created_at"`
     
-    // Validações
-    // gaverModel: writable:post,put; readable; required; min:0; max:99999
-    Price float64 `json:"price"`
-    
-    // Campos apenas leitura
-    // gaverModel: ignore:write; readable
-    ViewCount int `json:"view_count"`
-    
-    // Campos internos (não expostos na API)
     // gaverModel: ignore
-    InternalCode string `json:"-"`
-    
-    // Relacionamentos
-    // gaverModel: relation:belongsTo; foreignKey:category_id
-    CategoryID uint     `json:"category_id"`
-    Category   Category `json:"category" gorm:"foreignKey:CategoryID"`
+    Password string `json:"-"`
 }
 ```
 
 ### Tags Disponíveis
 
-| Tag | Descrição | Exemplo |
-|-----|-----------|---------|
-| `writable:methods` | Métodos HTTP que podem escrever | `writable:post,put,patch` |
-| `readable` | Pode ser lido em GET | `readable` |
-| `required` | Campo obrigatório | `required` |
-| `unique` | Valor único no banco | `unique` |
-| `email` | Valida formato email | `email` |
-| `min:N` / `max:N` | Valores numéricos | `min:18; max:120` |
-| `minLength:N` / `maxLength:N` | Tamanho strings | `minLength:3; maxLength:100` |
-| `enum:vals` | Valores permitidos | `enum:active,inactive,pending` |
-| `relation:type` | Tipo de relacionamento | `relation:hasMany` |
+**Controle de Acesso:**
+- `writable:post,put,patch` - Métodos que podem escrever
+- `readable` - Pode ser lido
+- `ignore:write` ou `ignore:read` - Ignorar escrita/leitura
+- `ignore` - Completamente ignorado
 
-## 🔄 Sistema de Callbacks
+**Validações:**
+- `required` - Obrigatório
+- `unique` - Valor único
+- `email`, `url` - Formato específico
+- `min:N`, `max:N` - Valores numéricos
+- `minLength:N`, `maxLength:N` - Tamanho strings
+- `enum:val1,val2` - Valores permitidos
 
-Personalize comportamento do CRUD:
+**Relacionamentos:**
+- `relation:hasOne|hasMany|belongsTo|manyToMany`
+- `foreignKey:field`
+- `through:table` - Para M2M
+
+## Callbacks
+
+Personalize o CRUD editando o handler gerado:
 
 ```go
 // modules/users/handlers/user_handler.go
 
-// Hash de senha antes de criar
 func (h *UserHandler) BeforeCreate(c *gin.Context, data map[string]interface{}) error {
+    // Hash de senha antes de salvar
     if password, ok := data["password"].(string); ok {
         hashed, _ := bcrypt.GenerateFromPassword([]byte(password), 10)
         data["password"] = string(hashed)
@@ -177,14 +142,14 @@ func (h *UserHandler) BeforeCreate(c *gin.Context, data map[string]interface{}) 
     return nil
 }
 
-// Remover senha antes de retornar
 func (h *UserHandler) AfterGet(c *gin.Context, user models.User) models.User {
+    // Remover senha antes de retornar
     user.Password = ""
     return user
 }
 
-// Validações customizadas
 func (h *UserHandler) OnValidate(data map[string]interface{}, operation string) error {
+    // Validações customizadas
     if age, ok := data["age"].(float64); ok {
         if age < 18 {
             return fmt.Errorf("usuário deve ter 18+ anos")
@@ -194,186 +159,71 @@ func (h *UserHandler) OnValidate(data map[string]interface{}, operation string) 
 }
 ```
 
-## 🔄 Rotinas Agendadas
-
-Sistema de tarefas em background:
-
-```go
-// config/routines/routines.go
-
-func (m *Manager) RegisterDefaultRoutines() {
-    // Limpar dados antigos diariamente
-    m.Register("cleanup", 24*time.Hour, func() {
-        log.Println("Limpando dados antigos...")
-        // Seu código aqui
-    })
-    
-    // Enviar emails a cada 5 minutos
-    m.Register("emails", 5*time.Minute, func() {
-        log.Println("Enviando emails pendentes...")
-        // Seu código aqui
-    })
-}
-```
-
-## 🛠️ Comandos CLI
-
-### Projeto
-```bash
-gaver init <nome> [-d database]    # Cria novo projeto
-```
-
-### Modules
-```bash
-gaver module create <nome>                     # Cria módulo
-gaver module:model <module> <Model> [campos]   # Cria model
-gaver module:crud <module> <Model>             # Gera CRUD completo
-  --only=list,get                             # Apenas métodos especificados
-  --except=delete                             # Tudo exceto delete
-```
-
-### Migrations
-```bash
-gaver makemigrations [-n nome] [-d]   # Detecta mudanças e gera SQL
-gaver migrate up [-s steps]           # Aplica migrations
-gaver migrate down [-s steps]         # Reverte migrations
-gaver migrate status                  # Status das migrations
-```
-
-## 📁 Estrutura Gerada
+## Estrutura Gerada
 
 ```
 meu-projeto/
-├── cmd/server/              # Aplicação principal
-├── config/                  # Configurações
-│   ├── database/           # Conexão com banco
-│   ├── middlewares/        # Middlewares HTTP
-│   ├── cors/               # Config CORS
-│   ├── env/                # Variáveis ambiente
-│   └── routines/           # Tarefas agendadas
-├── modules/                # Seus módulos
+├── cmd/server/           # Aplicação principal
+├── config/               # Configurações
+│   ├── database/        # Conexão DB
+│   ├── routes/          # Registry de rotas
+│   ├── modules/         # Registro de módulos
+│   └── ...
+├── modules/              # Seus módulos
 │   └── users/
-│       ├── models/         # Models com annotations
-│       ├── handlers/       # Controllers REST
-│       ├── services/       # Lógica de negócio
-│       ├── repositories/   # Camada de dados
-│       └── module.go       # Registro de rotas
-├── migrations/             # Migrations SQL
-├── .env                    # Variáveis de ambiente
-└── go.mod
+│       ├── models/      # Models com annotations
+│       ├── handlers/    # HTTP handlers
+│       ├── services/    # Lógica de negócio
+│       ├── repositories/# Acesso a dados
+│       └── module.go    # Rotas do módulo
+└── migrations/          # SQL migrations
 ```
 
-## 🗄️ Suporte a Bancos de Dados
+## Rotas Automáticas
 
-- ✅ MySQL
-- ✅ PostgreSQL
-- ✅ SQLite
+Ao criar um CRUD, as rotas são registradas automaticamente:
 
-## 🤝 Contribuindo
+```go
+// modules/users/module.go - Gerado automaticamente
+func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
+    userRepo := repositories.NewUserRepository()
+    userService := services.NewUserService(userRepo)
+    userHandler := handlers.NewUserHandler(userService)
 
-Contribuições são muito bem-vindas! Este projeto está em beta e qualquer feedback é valioso.
+    router.GET("/users", userHandler.List)
+    router.GET("/users/:id", userHandler.Get)
+    router.POST("/users", userHandler.Create)
+    router.PUT("/users/:id", userHandler.Update)
+    router.PATCH("/users/:id", userHandler.Patch)
+    router.DELETE("/users/:id", userHandler.Delete)
+}
+```
 
-1. Fork o projeto
-2. Crie uma branch (`git checkout -b feature/NovaFeature`)
-3. Commit suas mudanças (`git commit -m 'Adiciona NovaFeature'`)
-4. Push para a branch (`git push origin feature/NovaFeature`)
-5. Abra um Pull Request
+Registrado em `config/modules/modules.go`:
+```go
+func RegisterModules(registry *routes.Registry) {
+    registry.Register("users", users.NewModule())
+}
+```
 
-## 📝 Roadmap Detalhado
+Resultado: Rotas disponíveis em `/api/v1/users` automaticamente!
 
-### v0.1.0-beta (Atual) ✅
-**Release:** Nov 2025 | **Status:** Lançado
+## Bancos de Dados Suportados
 
-- [x] CLI básico com Cobra
-- [x] Sistema de modules
-- [x] Geração de CRUD automático
-- [x] Annotations gaverModel
-- [x] Migrations (makemigrations/migrate)
-- [x] Callbacks Before/After
-- [x] Validações básicas
-- [x] Sistema de rotinas
+- MySQL
+- PostgreSQL
+- SQLite
 
-### v0.2.0-beta (Q1 2026)
-**Foco:** ORM e Validações
+## Licença
 
-- [ ] QuerySet API completo estilo Django
-  - [ ] Filter, Exclude, All, First, Count
-  - [ ] Order By, Limit, Offset
-  - [ ] Joins automáticos
-- [ ] Validações avançadas
-  - [ ] Custom validators
-  - [ ] Cross-field validation
-- [ ] Relacionamentos completos
-  - [ ] HasOne, HasMany, BelongsTo
-  - [ ] ManyToMany com through tables
-- [ ] Testes unitários (50% coverage)
+MIT License - veja [LICENSE](LICENSE)
 
-### v0.3.0-beta (Q2 2026)
-**Foco:** Developer Experience
+## Links
 
-- [ ] Documentação expandida
-- [ ] Exemplos de projetos completos
-- [ ] Hot reload em desenvolvimento
-- [ ] Melhor error handling
-- [ ] CLI com cores e progress bars
-- [ ] Comando `gaver shell` (console interativo)
-- [ ] Testes de integração
-
-### v0.4.0-beta (Q3 2026)
-**Foco:** Features Avançadas
-
-- [ ] Autenticação JWT integrada
-- [ ] Permissions e ACL
-- [ ] WebSockets support
-- [ ] GraphQL opcional
-- [ ] Cache layer (Redis)
-- [ ] Rate limiting avançado
-
-### v0.5.0-beta (Q4 2026)
-**Foco:** Produção-Ready
-
-- [ ] Admin interface web
-- [ ] Monitoring e metrics
-- [ ] Logging estruturado
-- [ ] Docker support
-- [ ] CI/CD templates
-- [ ] Cobertura de testes 80%+
-
-### v0.9.0-beta (Q1 2027)
-**Feature Freeze - Preparação para v1.0**
-
-- [ ] API congelada
-- [ ] Bug fixes apenas
-- [ ] Performance tuning
-- [ ] Security audit
-- [ ] Documentação final
-- [ ] Migration guide
-
-### v1.0.0 (Q2 2027 - Estimado)
-**Primeira Versão Estável**
-
-Critérios para lançamento:
-- [ ] Zero bugs críticos
-- [ ] API estável por 3+ meses sem breaking changes
-- [ ] Cobertura de testes 85%+
-- [ ] Documentação completa
-- [ ] 100+ projetos usando em desenvolvimento
-- [ ] Performance benchmarks publicados
-- [ ] Security review completo
-
----
-
-**Timeline sujeito a mudanças baseado em feedback da comunidade**
-
-## 📄 Licença
-
-Este projeto está sob a licença MIT - veja [LICENSE](LICENSE) para detalhes.
-
-## ⭐ Apoie o Projeto
-
-Se você achou útil, considere dar uma estrela no GitHub! ⭐
+- [CHANGELOG](CHANGELOG.md) - Histórico de versões
+- [CONTRIBUTING](CONTRIBUTING.md) - Como contribuir
+- [BETA-WARNING](BETA-WARNING.md) - Aviso sobre versão beta
 
 ---
 
 **Desenvolvido com ❤️ usando Go e Gin**
-

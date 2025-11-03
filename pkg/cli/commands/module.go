@@ -63,8 +63,8 @@ func newModuleModelCommand() *cobra.Command {
 		Use:   "model [module] [ModelName] [fields...]",
 		Short: "Cria um model dentro de um módulo",
 		Long:  "Gera um arquivo de model com annotations gaverModel.",
-		Example: `  gaver module:model users User name:string email:string:unique age:int
-  gaver module:model products Product title:string price:float stock:int`,
+		Example: `  gaver module model users User name:string email:string:unique age:int
+  gaver module model products Product title:string price:float stock:int`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: runModuleModel,
 	}
