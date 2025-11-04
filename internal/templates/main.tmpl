@@ -29,7 +29,7 @@ func main() {
 	fmt.Println("")
 
 	// Carregar dependências do sistema
-	db, err := loadDependencies()
+	err := loadDependencies()
 	if err != nil {
 		log.Fatalf("Erro ao carregar dependências: %v", err)
 	}
@@ -79,7 +79,7 @@ func main() {
 }
 
 // Carregar dependências do sistema
-func loadDependencies() (*gorm.DB, error) {
+func loadDependencies() error {
 	// Carregar variáveis de ambiente
 	log.Println("Carregando variáveis de ambiente...")
 	env.Load()
@@ -88,9 +88,9 @@ func loadDependencies() (*gorm.DB, error) {
 	// Conectar ao banco de dados
 	log.Println("Conectando ao banco de dados...")
 
-	db, err := database.Connect()
+	_, err := database.Connect()
 	if err != nil {
-		return nil, fmt.Errorf("erro ao conectar ao banco: %v", err)
+		return fmt.Errorf("erro ao conectar ao banco: %v", err)
 	}
 
 	log.Println("✓ Banco de dados conectado")
@@ -102,5 +102,5 @@ func loadDependencies() (*gorm.DB, error) {
 	routineManager.Start()
 	log.Println("✓ Rotinas em background iniciadas")
 
-	return db, nil
+	return nil
 }
