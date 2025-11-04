@@ -1,12 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"fmt"
-	"log"
 
 	"{{.ProjectName}}/config/cors"
 	"{{.ProjectName}}/config/database"
@@ -17,6 +16,7 @@ import (
 	"{{.ProjectName}}/config/routines"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Erro ao carregar dependências: %v", err)
 	}
-	defer db.Close()
+	defer database.Close()
 
 	// Configurar modo do Gin (release em produção)
 	if env.Get("ENV", "development") == "production" {
@@ -79,14 +79,10 @@ func main() {
 }
 
 // Carregar dependências do sistema
-func loadDependencies() (*database.DB, error) {
+func loadDependencies() (*gorm.DB, error) {
 	// Carregar variáveis de ambiente
 	log.Println("Carregando variáveis de ambiente...")
-
-	if err := env.Load(); err != nil {
-		return nil, fmt.Errorf("erro ao carregar variáveis de ambiente: %v", err)
-	}
-
+	env.Load()
 	log.Println("✓ Variáveis de ambiente carregadas")
 
 	// Conectar ao banco de dados
@@ -101,13 +97,9 @@ func loadDependencies() (*database.DB, error) {
 
 	// Iniciar rotinas em background
 	log.Println("Iniciando rotinas em background...")
-
 	routineManager := routines.NewManager()
 	routineManager.RegisterDefaultRoutines()
-	if err := routineManager.Start(); err != nil {
-		return nil, fmt.Errorf("erro ao iniciar rotinas em background: %v", err)
-	}
-
+	routineManager.Start()
 	log.Println("✓ Rotinas em background iniciadas")
 
 	return db, nil
