@@ -71,6 +71,7 @@ func GenerateInitialFiles(projectName, database string) error {
 		"config_modules.tmpl":     "config/modules/modules.go",
 		"main.tmpl":               "cmd/server/main.go",
 		"env.tmpl":                ".env",
+		"gitignore.tmpl":          ".gitignore",
 		"go_mod.tmpl":             "go.mod",
 		"readme.tmpl":             "README.md",
 	}
