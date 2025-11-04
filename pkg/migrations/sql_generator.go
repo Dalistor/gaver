@@ -51,18 +51,180 @@ func (g *SQLGenerator) generateForChange(change SchemaChange, driver string) (up
 }
 
 func (g *SQLGenerator) generateCreateTable(change SchemaChange, driver string) (up string, down string) {
-	// TODO: Buscar metadata do model para gerar DDL completo
-	// Por enquanto, gera uma estrutura básica
-
-	up = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+	if change.Model == nil {
+		// Fallback se não tiver metadata
+		up = fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`, change.TableName)
+		down = fmt.Sprintf("DROP TABLE IF EXISTS %s;", change.TableName)
+		return up, down
+	}
+
+	// Gerar DDL baseado nos campos do model
+	var columns []string
+
+	for _, field := range change.Model.Fields {
+		// Ignorar campos que não devem virar colunas
+		if g.shouldSkipField(field) {
+			continue
+		}
+
+		columnName := field.JSONTag
+		if columnName == "" || columnName == "-" {
+			columnName = toSnakeCase(field.Name)
+		}
+
+		columnDef := g.generateColumnDefinition(field, driver)
+		if columnDef != "" {
+			columns = append(columns, fmt.Sprintf("    %s %s", columnName, columnDef))
+		}
+	}
+
+	tableDef := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n%s\n)", 
+		change.TableName, 
+		strings.Join(columns, ",\n"))
+
+	if driver == "mysql" {
+		tableDef += " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+	}
+	tableDef += ";"
 
 	down = fmt.Sprintf("DROP TABLE IF EXISTS %s;", change.TableName)
 
-	return up, down
+	return tableDef, down
+}
+
+// generateColumnDefinition gera a definição SQL de uma coluna
+func (g *SQLGenerator) generateColumnDefinition(field parser.FieldMetadata, driver string) string {
+	sqlType := g.goTypeToSQL(field.Type, field.GORMTag, driver)
+	if sqlType == "" {
+		return ""
+	}
+
+	// Adicionar constraints
+	constraints := []string{sqlType}
+
+	// PRIMARY KEY
+	if field.PrimaryKey {
+		constraints = append(constraints, "PRIMARY KEY")
+	}
+
+	// NOT NULL (required)
+	if field.Required && !field.PrimaryKey {
+		constraints = append(constraints, "NOT NULL")
+	}
+
+	// UNIQUE
+	if field.Unique {
+		constraints = append(constraints, "UNIQUE")
+	}
+
+	// DEFAULT (extrair do GORM tag se existir)
+	if field.Default != "" {
+		constraints = append(constraints, fmt.Sprintf("DEFAULT %s", field.Default))
+	}
+
+	// AUTO_INCREMENT para MySQL
+	if field.AutoInc && driver == "mysql" {
+		constraints = append(constraints, "AUTO_INCREMENT")
+	}
+
+	return strings.Join(constraints, " ")
+}
+
+// goTypeToSQL converte tipo Go para tipo SQL
+func (g *SQLGenerator) goTypeToSQL(goType string, gormTag string, driver string) string {
+	// Se tem tipo específico no GORM tag, usar ele
+	if strings.Contains(gormTag, "type:") {
+		// Extrair type: do gorm tag
+		parts := strings.Split(gormTag, ";")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if strings.HasPrefix(part, "type:") {
+				return strings.TrimPrefix(part, "type:")
+			}
+		}
+	}
+
+	// Mapeamento de tipos Go para SQL
+	switch goType {
+	case "string":
+		return "VARCHAR(255)"
+	case "int", "int32":
+		return "INT"
+	case "int64":
+		return "BIGINT"
+	case "uint", "uint32":
+		return "INT UNSIGNED"
+	case "uint64":
+		return "BIGINT UNSIGNED"
+	case "float32":
+		return "FLOAT"
+	case "float64":
+		return "DOUBLE"
+	case "bool":
+		if driver == "postgres" {
+			return "BOOLEAN"
+		}
+		return "TINYINT(1)"
+	case "time.Time":
+		if driver == "postgres" {
+			return "TIMESTAMP"
+		}
+		return "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+	case "uuid.UUID":
+		if driver == "postgres" {
+			return "UUID"
+		}
+		return "CHAR(36)"
+	case "[]byte":
+		return "BLOB"
+	default:
+		return "VARCHAR(255)"
+	}
+}
+
+// shouldSkipField verifica se um campo deve ser ignorado
+func (g *SQLGenerator) shouldSkipField(field parser.FieldMetadata) bool {
+	// Ignorar campos marcados explicitamente
+	if field.Ignore || (field.IgnoreRead && field.IgnoreWrite) {
+		return true
+	}
+
+	// Ignorar se JSON tag é "-"
+	if field.JSONTag == "-" {
+		return true
+	}
+
+	// Ignorar relacionamentos que não têm coluna física
+	// Relacionamentos são fields que:
+	// 1. Têm Relation definida E
+	// 2. Não terminam com ID/Id (foreign keys terminam com ID)
+	if field.Relation != nil && !strings.HasSuffix(field.Name, "ID") && !strings.HasSuffix(field.Name, "Id") {
+		return true
+	}
+
+	// Ignorar tipos complexos (structs customizados)
+	// Mas permitir time.Time e uuid.UUID
+	if strings.Contains(field.Type, ".") && !strings.HasPrefix(field.Type, "time.") && !strings.HasPrefix(field.Type, "uuid.") {
+		return true
+	}
+
+	return false
+}
+
+// toSnakeCase converte CamelCase para snake_case
+func toSnakeCase(s string) string {
+	var result []rune
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result = append(result, '_')
+		}
+		result = append(result, r)
+	}
+	return strings.ToLower(string(result))
 }
 
 func (g *SQLGenerator) generateDropTable(change SchemaChange, driver string) (up string, down string) {

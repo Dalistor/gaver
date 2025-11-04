@@ -16,15 +16,14 @@ import (
 	"{{.ProjectName}}/config/routines"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 func main() {
 	// Apresentação bonita
 	fmt.Println("")
 	fmt.Println("╔════════════════════════════════════════════╗")
-	fmt.Printf("                      %s            \n", "{{.ProjectName}}")
-	fmt.Println("          Powered by Gaver Framework         ")
+	fmt.Printf("  %s\n", "{{.ProjectName}}")
+	fmt.Println(" Powered by Gaver Framework")
 	fmt.Println("╚════════════════════════════════════════════╝")
 	fmt.Println("")
 
@@ -35,16 +34,20 @@ func main() {
 	}
 	defer database.Close()
 
-	// Configurar modo do Gin (release em produção)
-	if env.Get("ENV", "development") == "production" {
+	// Configurar modo do Gin baseado no ambiente
+	if env.Get("ENV", "production") == "development" {
+		gin.SetMode(gin.DebugMode)
+	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	// Criar router
-	router := gin.Default()
-
-	// Aplicar middlewares customizados
+	router := gin.New()
+	
+	// Adicionar apenas middlewares essenciais
+	router.Use(gin.Recovery()) // Panic recovery
 	router.Use(cors.Middleware())
+	
 	router.Use(middlewares.Logger())
 
 	// Criar registry de módulos
@@ -61,11 +64,11 @@ func main() {
 	// Iniciar servidor em goroutine
 	host := env.Get("SERVER_HOST", "0.0.0.0")
 	port := env.Get("SERVER_PORT", "7077")
-	log.Printf("Servidor rodando em http://%s:%s\n", host, port)
+	log.Printf("🚀 Servidor rodando em http://%s:%s\n", host, port)
 	
 	go func() {
 		if err := router.Run(host + ":" + port); err != nil {
-			log.Fatalf("Erro ao iniciar servidor: %v", err)
+			log.Fatalf("❌ Erro ao iniciar servidor: %v", err)
 		}
 	}()
 

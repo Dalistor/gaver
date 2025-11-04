@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Dalistor/gaver/pkg/parser"
+	"gorm.io/gorm"
 )
 
 // SchemaChange representa uma mudança no schema
@@ -18,6 +20,7 @@ type SchemaChange struct {
 	Description string
 	OldValue    interface{}
 	NewValue    interface{}
+	Model       *parser.ModelMetadata // Metadados completos do model
 }
 
 // Detector detecta mudanças nos models
@@ -94,9 +97,166 @@ func (d *Detector) scanModels() ([]*parser.ModelMetadata, error) {
 
 // readDatabaseSchema lê o schema atual do banco
 func (d *Detector) readDatabaseSchema() (map[string]*TableSchema, error) {
-	// TODO: Implementar leitura real do banco de dados
-	// Por enquanto, retorna vazio para simular banco novo
-	return make(map[string]*TableSchema), nil
+	// Conectar ao banco
+	db, err := ConnectDB()
+	if err != nil {
+		// Se não conseguir conectar, assume que é banco novo
+		return make(map[string]*TableSchema), nil
+	}
+
+	schema := make(map[string]*TableSchema)
+
+	// Buscar todas as tabelas (detectar driver)
+	var tables []string
+	driver := os.Getenv("DB_DRIVER")
+
+	var query string
+	switch driver {
+	case "postgres":
+		query = "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+	case "sqlite":
+		query = "SELECT name FROM sqlite_master WHERE type='table'"
+	default: // mysql
+		query = "SHOW TABLES"
+	}
+
+	if err := db.Raw(query).Scan(&tables).Error; err != nil {
+		// Se der erro, assume banco vazio
+		return make(map[string]*TableSchema), nil
+	}
+
+	// Para cada tabela, buscar colunas
+	for _, tableName := range tables {
+		// Ignorar tabela de controle de migrations
+		if tableName == "migrations" {
+			continue
+		}
+
+		columns, err := d.getTableColumns(db, tableName)
+		if err != nil {
+			continue
+		}
+
+		schema[tableName] = &TableSchema{
+			Name:    tableName,
+			Columns: columns,
+		}
+	}
+
+	return schema, nil
+}
+
+// getTableColumns busca colunas de uma tabela
+func (d *Detector) getTableColumns(db *gorm.DB, tableName string) ([]*ColumnSchema, error) {
+	driver := os.Getenv("DB_DRIVER")
+
+	switch driver {
+	case "postgres":
+		return d.getColumnsPostgres(db, tableName)
+	case "sqlite":
+		return d.getColumnsSQLite(db, tableName)
+	default: // mysql
+		return d.getColumnsMySQL(db, tableName)
+	}
+}
+
+// getColumnsMySQL busca colunas usando DESCRIBE (MySQL)
+func (d *Detector) getColumnsMySQL(db *gorm.DB, tableName string) ([]*ColumnSchema, error) {
+	type columnInfo struct {
+		Field   string
+		Type    string
+		Null    string
+		Key     string
+		Default *string
+		Extra   string
+	}
+
+	var columns []*ColumnSchema
+	var results []columnInfo
+
+	if err := db.Raw(fmt.Sprintf("DESCRIBE %s", tableName)).Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	for _, col := range results {
+		columns = append(columns, &ColumnSchema{
+			Name:       col.Field,
+			Type:       col.Type,
+			Nullable:   col.Null == "YES",
+			Default:    col.Default,
+			PrimaryKey: col.Key == "PRI",
+		})
+	}
+
+	return columns, nil
+}
+
+// getColumnsPostgres busca colunas usando information_schema (PostgreSQL)
+func (d *Detector) getColumnsPostgres(db *gorm.DB, tableName string) ([]*ColumnSchema, error) {
+	type columnInfo struct {
+		ColumnName             string
+		DataType               string
+		IsNullable             string
+		ColumnDefault          *string
+		CharacterMaximumLength *int
+	}
+
+	var columns []*ColumnSchema
+	var results []columnInfo
+
+	query := `
+		SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
+		FROM information_schema.columns
+		WHERE table_name = ?
+		ORDER BY ordinal_position
+	`
+
+	if err := db.Raw(query, tableName).Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	for _, col := range results {
+		columns = append(columns, &ColumnSchema{
+			Name:       col.ColumnName,
+			Type:       col.DataType,
+			Nullable:   col.IsNullable == "YES",
+			Default:    col.ColumnDefault,
+			PrimaryKey: false, // TODO: Detectar primary key
+		})
+	}
+
+	return columns, nil
+}
+
+// getColumnsSQLite busca colunas usando PRAGMA (SQLite)
+func (d *Detector) getColumnsSQLite(db *gorm.DB, tableName string) ([]*ColumnSchema, error) {
+	type columnInfo struct {
+		CID          int
+		Name         string
+		Type         string
+		NotNull      int
+		DefaultValue *string
+		PK           int
+	}
+
+	var columns []*ColumnSchema
+	var results []columnInfo
+
+	if err := db.Raw(fmt.Sprintf("PRAGMA table_info(%s)", tableName)).Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	for _, col := range results {
+		columns = append(columns, &ColumnSchema{
+			Name:       col.Name,
+			Type:       col.Type,
+			Nullable:   col.NotNull == 0,
+			Default:    col.DefaultValue,
+			PrimaryKey: col.PK == 1,
+		})
+	}
+
+	return columns, nil
 }
 
 // allTablesAsNew cria mudanças CREATE_TABLE para todos os models
@@ -109,6 +269,7 @@ func (d *Detector) allTablesAsNew(models []*parser.ModelMetadata) []SchemaChange
 			ModelName:   model.Name,
 			TableName:   model.TableName,
 			Description: fmt.Sprintf("Criar tabela %s", model.TableName),
+			Model:       model, // Passar metadados completos
 		})
 	}
 
@@ -130,6 +291,7 @@ func (d *Detector) compareSchemas(models []*parser.ModelMetadata, dbSchema map[s
 				ModelName:   model.Name,
 				TableName:   model.TableName,
 				Description: fmt.Sprintf("Criar tabela %s", model.TableName),
+				Model:       model, // Passar metadados completos
 			})
 		} else {
 			// Comparar campos
@@ -155,8 +317,13 @@ func (d *Detector) compareFields(model *parser.ModelMetadata, table *TableSchema
 
 	// Verificar campos novos e alterados
 	for _, field := range model.Fields {
+		// Ignorar campos que não têm coluna física no banco
+		if d.shouldSkipField(field) {
+			continue
+		}
+
 		columnName := field.JSONTag
-		if columnName == "" {
+		if columnName == "" || columnName == "-" {
 			columnName = toSnakeCase(field.Name)
 		}
 
@@ -192,12 +359,90 @@ func (d *Detector) compareFields(model *parser.ModelMetadata, table *TableSchema
 	return changes
 }
 
-func (d *Detector) typeChanged(field parser.FieldMetadata, col *ColumnSchema) bool {
-	if field.Type != col.Type && field.Type != "interface{}" {
+// shouldSkipField verifica se um campo deve ser ignorado na comparação
+func (d *Detector) shouldSkipField(field parser.FieldMetadata) bool {
+	// Ignorar campos marcados explicitamente
+	if field.Ignore || (field.IgnoreRead && field.IgnoreWrite) {
+		return true
+	}
+
+	// Ignorar se JSON tag é "-"
+	if field.JSONTag == "-" {
+		return true
+	}
+
+	// Ignorar relacionamentos que não têm coluna física
+	// (não terminam com ID/Id e não são tipos básicos)
+	if field.Relation != nil && !strings.HasSuffix(field.Name, "ID") && !strings.HasSuffix(field.Name, "Id") {
+		return true
+	}
+
+	// Ignorar tipos complexos que não são colunas (struct, array, etc)
+	if strings.Contains(field.Type, ".") && !strings.HasPrefix(field.Type, "time.") && !strings.HasPrefix(field.Type, "uuid.") {
+		// É um tipo customizado (não primitivo)
 		return true
 	}
 
 	return false
+}
+
+func (d *Detector) typeChanged(field parser.FieldMetadata, col *ColumnSchema) bool {
+	// Não detectar mudança se for interface{} ou tipo desconhecido
+	if field.Type == "interface{}" {
+		return false
+	}
+
+	// Converter tipo Go para SQL esperado
+	driver := os.Getenv("DB_DRIVER")
+	if driver == "" {
+		driver = "mysql"
+	}
+
+	sqlGen := NewSQLGenerator()
+	expectedType := sqlGen.goTypeToSQL(field.Type, field.GORMTag, driver)
+
+	// Normalizar tipos para comparação
+	expectedNorm := normalizeSQLType(expectedType)
+	actualNorm := normalizeSQLType(col.Type)
+
+	// Comparar tipos normalizados
+	return expectedNorm != actualNorm
+}
+
+// normalizeSQLType normaliza tipos SQL para comparação
+func normalizeSQLType(sqlType string) string {
+	sqlType = strings.ToUpper(sqlType)
+
+	// Remover tamanhos, defaults e constraints
+	sqlType = strings.Split(sqlType, " ")[0]
+
+	// Normalizar variações comuns
+	switch {
+	case strings.HasPrefix(sqlType, "VARCHAR"):
+		return "VARCHAR"
+	case strings.HasPrefix(sqlType, "CHAR"):
+		return "CHAR"
+	case strings.HasPrefix(sqlType, "BIGINT"):
+		return "BIGINT"
+	case strings.HasPrefix(sqlType, "INT"):
+		return "INT"
+	case strings.HasPrefix(sqlType, "TIMESTAMP"):
+		return "TIMESTAMP"
+	case strings.HasPrefix(sqlType, "DATETIME"):
+		return "TIMESTAMP"
+	case strings.HasPrefix(sqlType, "TINYINT"):
+		return "TINYINT"
+	case strings.HasPrefix(sqlType, "TEXT"):
+		return "TEXT"
+	case strings.HasPrefix(sqlType, "BLOB"):
+		return "BLOB"
+	case strings.HasPrefix(sqlType, "DOUBLE"):
+		return "DOUBLE"
+	case strings.HasPrefix(sqlType, "FLOAT"):
+		return "FLOAT"
+	default:
+		return sqlType
+	}
 }
 
 // GenerateMigrationFile gera arquivo de migration

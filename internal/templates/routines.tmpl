@@ -39,8 +39,6 @@ func (m *Manager) Register(name string, interval time.Duration, task func()) {
 
 // Start inicia todas as rotinas registradas
 func (m *Manager) Start() {
-	log.Println("🔄 Iniciando rotinas...")
-
 	for _, routine := range m.routines {
 		go m.runRoutine(routine)
 		log.Printf("  ✓ Rotina '%s' iniciada (executa a cada %v)\n", routine.Name, routine.Interval)

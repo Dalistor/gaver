@@ -18,35 +18,21 @@ func NewServeCommand() *cobra.Command {
 		RunE:  runServe,
 	}
 
-	cmd.Flags().StringP("port", "p", "8080", "Porta do servidor")
-	cmd.Flags().BoolP("watch", "w", false, "Watch mode (hot reload)")
-
 	return cmd
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
-	port, _ := cmd.Flags().GetString("port")
-	watch, _ := cmd.Flags().GetBool("watch")
-
 	// Verificar se estamos em um projeto Gaver
 	if _, err := os.Stat("cmd/server/main.go"); os.IsNotExist(err) {
 		return fmt.Errorf("não parece ser um projeto Gaver. Execute 'gaver init' primeiro")
 	}
 
-	// Setar variável de ambiente para a porta
-	os.Setenv("SERVER_PORT", port)
-
-	if watch {
-		return runWithWatch(port)
-	}
-
-	return runNormal(port)
+	return runNormal()
 }
 
-func runNormal(port string) error {
-	fmt.Printf("🚀 Iniciando servidor na porta %s...\n", port)
-	fmt.Println("📝 Use Ctrl+C para parar o servidor")
-	fmt.Println()
+func runNormal() error {
+	fmt.Printf("Iniciando servidor...\n")
+	fmt.Println("Use Ctrl+C para parar o servidor")
 
 	// Executar go run
 	cmd := exec.Command("go", "run", "cmd/server/main.go")
@@ -79,11 +65,3 @@ func runNormal(port string) error {
 
 	return nil
 }
-
-func runWithWatch(port string) error {
-	// TODO: Implementar hot reload
-	fmt.Println("⚠️  Watch mode ainda não implementado")
-	fmt.Println("    Usando modo normal...")
-	return runNormal(port)
-}
-

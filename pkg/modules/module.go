@@ -69,13 +69,13 @@ func CreateModelTemplate(moduleName, modelName string) error {
 	if _, err := os.Stat(filepath.Join("modules", moduleName)); os.IsNotExist(err) {
 		return fmt.Errorf("módulo '%s' não existe. Use 'gaver module create %s' primeiro", moduleName, moduleName)
 	}
-	
+
 	// Usar generator com template embarcado
 	gen := templates.New(filepath.Join("modules", moduleName, "models"))
-	
+
 	// Calcular nome da tabela
 	tableName := toSnakeCase(pluralize(modelName))
-	
+
 	data := struct {
 		ModelName string
 		TableName string
@@ -83,7 +83,7 @@ func CreateModelTemplate(moduleName, modelName string) error {
 		ModelName: modelName,
 		TableName: tableName,
 	}
-	
+
 	filename := toSnakeCase(modelName) + ".go"
 	return gen.Generate("module_model_template.tmpl", filename, data)
 }
@@ -338,8 +338,8 @@ func updateModuleRoutes(moduleName, modelName string, methods map[string]bool) e
 
 	// Verificar se já existe código de rotas
 	if strings.Contains(contentStr, "RegisterRoutes") {
-		// Substituir o conteúdo da função RegisterRoutes
-		contentStr = replaceRoutesFunction(contentStr, routesCode)
+		// Adicionar ou substituir rotas do model específico
+		contentStr = replaceOrAddModelRoutes(contentStr, modelName, routesCode)
 	} else {
 		// Adicionar função RegisterRoutes
 		contentStr = addRoutesFunction(contentStr, routesCode)
@@ -384,22 +384,21 @@ func generateRoutesCode(moduleName, modelName string, methods map[string]bool) s
 	return code.String()
 }
 
-func replaceRoutesFunction(content, routesCode string) string {
+func replaceOrAddModelRoutes(content, modelName, newRoutesCode string) string {
 	// Primeiro, adicionar imports necessários
 	projectName, moduleName := extractModuleInfo(content)
 	content = ensureImport(content, projectName+"/modules/"+moduleName+"/handlers")
 	content = ensureImport(content, projectName+"/modules/"+moduleName+"/services")
 	content = ensureImport(content, projectName+"/modules/"+moduleName+"/repositories")
 
-	// Encontrar função RegisterRoutes e substituir conteúdo
+	// Encontrar função RegisterRoutes
 	startMarker := "func (m *Module) RegisterRoutes(router *gin.RouterGroup) {"
-
 	startIdx := strings.Index(content, startMarker)
 	if startIdx == -1 {
 		return content
 	}
 
-	// Encontrar o fechamento da função (procurar o } correspondente)
+	// Encontrar o fechamento da função
 	braceCount := 0
 	endIdx := startIdx + len(startMarker)
 
@@ -415,9 +414,54 @@ func replaceRoutesFunction(content, routesCode string) string {
 		}
 	}
 
+	// Extrair conteúdo existente da função
+	existingContent := content[startIdx+len(startMarker) : endIdx]
+
+	// Verificar se já existe handler para este model
+	markerComment := "// Inicializar " + modelName + " handler"
+
+	// Se já existe, remover o bloco antigo
+	if strings.Contains(existingContent, markerComment) {
+		existingContent = removeModelBlock(existingContent, markerComment)
+	}
+
+	// Adicionar separador se já houver conteúdo
+	separator := ""
+	if strings.TrimSpace(existingContent) != "" {
+		separator = "\n"
+	}
+
 	// Reconstruir conteúdo
-	newContent := content[:startIdx+len(startMarker)] + "\n" + routesCode + "\n" + content[endIdx:]
+	newContent := content[:startIdx+len(startMarker)] + existingContent + separator + newRoutesCode + "\n" + content[endIdx:]
 	return newContent
+}
+
+// removeModelBlock remove o bloco de código de um model específico
+func removeModelBlock(content, markerComment string) string {
+	lines := strings.Split(content, "\n")
+	var result []string
+	skip := false
+
+	for _, line := range lines {
+		if strings.Contains(line, markerComment) {
+			skip = true
+			continue
+		}
+
+		// Detectar fim do bloco (linha vazia ou outro comentário de inicialização)
+		if skip {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "// Inicializar") {
+				skip = false
+			} else {
+				continue // Pular linhas do bloco
+			}
+		}
+
+		result = append(result, line)
+	}
+
+	return strings.Join(result, "\n")
 }
 
 func addRoutesFunction(content, routesCode string) string {
