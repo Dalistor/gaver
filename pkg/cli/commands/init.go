@@ -40,11 +40,6 @@ func run_init(cmd *cobra.Command, args []string) error {
 	fmt.Println("Próximos passos:")
 	fmt.Printf("  cd %s\n", projectName)
 	fmt.Println("  go mod tidy")
-	fmt.Println("  gaver module create users")
-	fmt.Println("  gaver module model users User")
-	fmt.Println("  # Edite modules/users/models/user.go e adicione seus campos")
-	fmt.Println("  gaver module crud users User")
-	fmt.Println("  gaver serve")
 
 	return nil
 }

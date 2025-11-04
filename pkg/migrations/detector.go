@@ -193,7 +193,10 @@ func (d *Detector) compareFields(model *parser.ModelMetadata, table *TableSchema
 }
 
 func (d *Detector) typeChanged(field parser.FieldMetadata, col *ColumnSchema) bool {
-	// TODO: Implementar comparação de tipos
+	if field.Type != col.Type && field.Type != "interface{}" {
+		return true
+	}
+
 	return false
 }
 

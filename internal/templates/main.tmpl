@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"net/http"
 
 	"{{.ProjectName}}/config/cors"
 	"{{.ProjectName}}/config/database"
@@ -48,20 +49,6 @@ func main() {
 	router.Use(cors.Middleware())
 	router.Use(middlewares.Logger())
 
-	// Rotas básicas
-	router.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "Bem-vindo ao {{.ProjectName}}!",
-			"version": "1.0.0",
-		})
-	})
-
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status": "ok",
-		})
-	})
-
 	// Criar registry de módulos
 	moduleRegistry := routes.NewRegistry()
 	
@@ -71,20 +58,6 @@ func main() {
 	// Inicializar módulos
 	if err := moduleRegistry.InitAll(); err != nil {
 		log.Fatalf("Erro ao inicializar módulos: %v", err)
-	}
-	
-	// Grupo de rotas API
-	api := router.Group("/api/v1")
-	{
-		// Rotas de exemplo
-		api.GET("/ping", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"message": "pong",
-			})
-		})
-		
-		// Registrar rotas de todos os módulos automaticamente
-		moduleRegistry.RegisterAll(api)
 	}
 
 	// Iniciar servidor em goroutine

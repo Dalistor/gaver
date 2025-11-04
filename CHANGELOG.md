@@ -14,6 +14,12 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Exemplos de projetos completos
 - Melhorias de performance
 
+## [0.1.1-beta] - 2025-11-04
+
+### Mudanças
+- Melhorias e correções diversas
+- Ajustes internos
+
 ## [0.1.0-beta] - 2025-11-03
 
 ### Instalação
@@ -113,6 +119,7 @@ Durante a fase beta:
 - [ ] Performance validada
 - [ ] Zero bugs críticos conhecidos
 
-[Unreleased]: https://github.com/Dalistor/gaver/compare/v0.1.0-beta...HEAD
+[Unreleased]: https://github.com/Dalistor/gaver/compare/v0.1.1-beta...HEAD
+[0.1.1-beta]: https://github.com/Dalistor/gaver/compare/v0.1.0-beta...v0.1.1-beta
 [0.1.0-beta]: https://github.com/Dalistor/gaver/releases/tag/v0.1.0-beta
 

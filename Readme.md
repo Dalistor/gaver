@@ -2,7 +2,7 @@
 
 **Framework web para Go com CLI, geração de código e ORM**
 
-[![Version](https://img.shields.io/badge/version-0.1.0--beta-orange.svg)](https://github.com/Dalistor/gaver/releases)
+[![Version](https://img.shields.io/badge/version-0.1.1--beta-orange.svg)](https://github.com/Dalistor/gaver/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -62,7 +62,7 @@ gaver migrate up
 gaver serve
 ```
 
-Servidor disponível em `http://localhost:8080`
+Servidor disponível em `http://localhost:7077`
 
 ### Rotas geradas automaticamente:
 
@@ -221,7 +221,7 @@ meu-projeto/
 
 ## Versão Atual
 
-**v0.1.0-beta** - Primeira versão beta com core features
+**v0.1.1-beta** - Versão de testes
 
 **Implementado:**
 - Sistema de modules
