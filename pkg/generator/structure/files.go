@@ -3,9 +3,11 @@ package structure
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	templates "github.com/Dalistor/gaver/internal/templates"
+	"github.com/Dalistor/gaver/pkg/config"
 )
 
 // CreateProjectFolders cria a estrutura de pastas do projeto
@@ -40,10 +42,12 @@ type ProjectConfig struct {
 	DatabaseDriverImport string
 	DatabasePort         string
 	DatabaseUser         string
+	ProjectType          string
+	ServerPort           string
 }
 
 // GenerateInitialFiles gera arquivos iniciais do projeto
-func GenerateInitialFiles(projectName, database string) error {
+func GenerateInitialFiles(projectName, database, projectType string) error {
 	// Criar estrutura de pastas primeiro
 	if err := CreateProjectFolders(projectName); err != nil {
 		return fmt.Errorf("erro ao criar pastas: %w", err)
@@ -55,6 +59,8 @@ func GenerateInitialFiles(projectName, database string) error {
 		DatabaseDriverImport: getDatabaseDriverImport(database),
 		DatabasePort:         getDatabasePort(database),
 		DatabaseUser:         getDatabaseUser(database),
+		ProjectType:          projectType,
+		ServerPort:           "8080", // Porta padrão do servidor
 	}
 
 	gen := templates.New(projectName)
@@ -71,6 +77,7 @@ func GenerateInitialFiles(projectName, database string) error {
 		"config_modules.tmpl":     "config/modules/modules.go",
 		"main.tmpl":               "cmd/server/main.go",
 		"env.tmpl":                ".env",
+		"env_example.tmpl":        ".env.example",
 		"gitignore.tmpl":          ".gitignore",
 		"go_mod.tmpl":             "go.mod",
 		"readme.tmpl":             "README.md",
@@ -123,4 +130,295 @@ func getDatabaseUser(db string) string {
 		"sqlite":   "",
 	}
 	return users[db]
+}
+
+// FrontendConfig representa a configuração para gerar frontend
+type FrontendConfig struct {
+	ProjectName string
+	ServerPort  string
+}
+
+// GenerateAndroidFrontend gera a estrutura frontend para Android
+func GenerateAndroidFrontend(projectName string, projectConfig *config.ProjectConfig) error {
+	gen := templates.New(projectName)
+
+	frontendConfig := FrontendConfig{
+		ProjectName: projectName,
+		ServerPort:  projectConfig.ServerPort,
+	}
+
+	// Criar estrutura de pastas frontend
+	frontendDirs := []string{
+		filepath.Join(projectName, "frontend", "src", "composables"),
+		filepath.Join(projectName, "frontend", "src", "api"),
+		filepath.Join(projectName, "frontend", "src", "components"),
+		filepath.Join(projectName, "frontend", "src", "pages"),
+		filepath.Join(projectName, "frontend", "src", "layouts"),
+		filepath.Join(projectName, "frontend", "src", "router"),
+		filepath.Join(projectName, "frontend", "src", "boot"),
+		filepath.Join(projectName, "frontend", "src", "assets"),
+		filepath.Join(projectName, "frontend", "src", "css"),
+	}
+
+	for _, dir := range frontendDirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("erro ao criar diretório %s: %w", dir, err)
+		}
+	}
+
+	// Gerar arquivos frontend
+	frontendFiles := map[string]string{
+		"quasar_config.tmpl":            "frontend/quasar.config.js",
+		"package_json_android.tmpl":     "frontend/package.json",
+		"capacitor_config.tmpl":         "frontend/capacitor.config.js",
+		"frontend_env.tmpl":             "frontend/.env",
+		"composable_api.tmpl":           "frontend/src/composables/useApi.ts",
+		"api_client.tmpl":               "frontend/src/api/client.js",
+		"router_config.tmpl":            "frontend/src/router/index.js",
+		"router_routes.tmpl":            "frontend/src/router/routes.js",
+		"app_main.tmpl":                 "frontend/src/main.js",
+		"app_vue.tmpl":                  "frontend/src/App.vue",
+		"index_html.tmpl":               "frontend/index.html",
+		"layout_main.tmpl":              "frontend/src/layouts/MainLayout.vue",
+		"page_index.tmpl":               "frontend/src/pages/IndexPage.vue",
+		"page_error.tmpl":               "frontend/src/pages/ErrorNotFound.vue",
+		"component_essential_link.tmpl": "frontend/src/components/EssentialLink.vue",
+		"boot_axios.tmpl":               "frontend/src/boot/axios.js",
+		"app_scss.tmpl":                 "frontend/src/css/app.scss",
+	}
+
+	for template, output := range frontendFiles {
+		if err := gen.Generate(template, output, frontendConfig); err != nil {
+			return fmt.Errorf("erro ao gerar %s: %w", output, err)
+		}
+	}
+
+	// Instalar dependências npm (inclui Capacitor)
+	fmt.Println("📦 Instalando dependências npm (incluindo Capacitor)...")
+	frontendPath := filepath.Join(projectName, "frontend")
+
+	// Salvar diretório atual
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("erro ao obter diretório atual: %w", err)
+	}
+
+	// Mudar para diretório frontend
+	if err := os.Chdir(frontendPath); err != nil {
+		return fmt.Errorf("erro ao mudar para diretório frontend: %w", err)
+	}
+
+	npmCmd := exec.Command("npm", "install")
+	npmCmd.Stdout = os.Stdout
+	npmCmd.Stderr = os.Stderr
+
+	if err := npmCmd.Run(); err != nil {
+		fmt.Println("⚠️  Aviso: Erro ao instalar dependências npm. Execute 'npm install' manualmente no diretório frontend.")
+	} else {
+		fmt.Println("✓ Dependências npm instaladas (Capacitor incluído)")
+	}
+
+	// Inicializar Capacitor após instalar dependências
+	fmt.Println("🔧 Inicializando Capacitor...")
+	capacitorInitCmd := exec.Command("npx", "cap", "init", projectName, "--web-dir=dist")
+	capacitorInitCmd.Stdout = os.Stdout
+	capacitorInitCmd.Stderr = os.Stderr
+	if err := capacitorInitCmd.Run(); err != nil {
+		fmt.Println("⚠️  Aviso: Erro ao inicializar Capacitor. Execute 'npx cap init' manualmente se necessário.")
+	}
+
+	// Adicionar plataforma Android
+	fmt.Println("📱 Adicionando plataforma Android...")
+	capacitorAddCmd := exec.Command("npx", "cap", "add", "android")
+	capacitorAddCmd.Stdout = os.Stdout
+	capacitorAddCmd.Stderr = os.Stderr
+	if err := capacitorAddCmd.Run(); err != nil {
+		fmt.Println("⚠️  Aviso: Erro ao adicionar Android. Execute 'npx cap add android' manualmente se necessário.")
+	}
+
+	// Voltar para diretório original
+	if err := os.Chdir(originalDir); err != nil {
+		return fmt.Errorf("erro ao voltar para diretório original: %w", err)
+	}
+
+	return nil
+}
+
+// GenerateDesktopFrontend gera a estrutura frontend para Desktop
+func GenerateDesktopFrontend(projectName string, projectConfig *config.ProjectConfig) error {
+	gen := templates.New(projectName)
+
+	frontendConfig := FrontendConfig{
+		ProjectName: projectName,
+		ServerPort:  projectConfig.ServerPort,
+	}
+
+	// Criar estrutura de pastas frontend
+	frontendDirs := []string{
+		filepath.Join(projectName, "frontend", "src", "composables"),
+		filepath.Join(projectName, "frontend", "src", "api"),
+		filepath.Join(projectName, "frontend", "src", "components"),
+		filepath.Join(projectName, "frontend", "src", "pages"),
+		filepath.Join(projectName, "frontend", "src", "layouts"),
+		filepath.Join(projectName, "frontend", "src", "router"),
+		filepath.Join(projectName, "frontend", "src", "boot"),
+		filepath.Join(projectName, "frontend", "src", "assets"),
+		filepath.Join(projectName, "frontend", "src", "css"),
+		filepath.Join(projectName, "frontend", "src-electron"),
+	}
+
+	for _, dir := range frontendDirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("erro ao criar diretório %s: %w", dir, err)
+		}
+	}
+
+	// Gerar arquivos frontend
+	frontendFiles := map[string]string{
+		"quasar_config.tmpl":            "frontend/quasar.config.js",
+		"package_json_desktop.tmpl":     "frontend/package.json",
+		"frontend_env.tmpl":             "frontend/.env",
+		"electron_main.tmpl":            "frontend/src-electron/electron-main.js",
+		"electron_preload.tmpl":         "frontend/src-electron/electron-preload.js",
+		"composable_api.tmpl":           "frontend/src/composables/useApi.ts",
+		"api_client.tmpl":               "frontend/src/api/client.js",
+		"router_config.tmpl":            "frontend/src/router/index.js",
+		"router_routes.tmpl":            "frontend/src/router/routes.js",
+		"app_main.tmpl":                 "frontend/src/main.js",
+		"app_vue.tmpl":                  "frontend/src/App.vue",
+		"index_html.tmpl":               "frontend/index.html",
+		"layout_main.tmpl":              "frontend/src/layouts/MainLayout.vue",
+		"page_index.tmpl":               "frontend/src/pages/IndexPage.vue",
+		"page_error.tmpl":               "frontend/src/pages/ErrorNotFound.vue",
+		"component_essential_link.tmpl": "frontend/src/components/EssentialLink.vue",
+		"boot_axios.tmpl":               "frontend/src/boot/axios.js",
+		"app_scss.tmpl":                 "frontend/src/css/app.scss",
+	}
+
+	for template, output := range frontendFiles {
+		if err := gen.Generate(template, output, frontendConfig); err != nil {
+			return fmt.Errorf("erro ao gerar %s: %w", output, err)
+		}
+	}
+
+	// Instalar dependências npm (inclui Electron)
+	fmt.Println("📦 Instalando dependências npm (incluindo Electron)...")
+	frontendPath := filepath.Join(projectName, "frontend")
+
+	// Salvar diretório atual
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("erro ao obter diretório atual: %w", err)
+	}
+
+	// Mudar para diretório frontend
+	if err := os.Chdir(frontendPath); err != nil {
+		return fmt.Errorf("erro ao mudar para diretório frontend: %w", err)
+	}
+
+	npmCmd := exec.Command("npm", "install")
+	npmCmd.Stdout = os.Stdout
+	npmCmd.Stderr = os.Stderr
+
+	if err := npmCmd.Run(); err != nil {
+		fmt.Println("⚠️  Aviso: Erro ao instalar dependências npm. Execute 'npm install' manualmente no diretório frontend.")
+	} else {
+		fmt.Println("✓ Dependências npm instaladas (Electron incluído)")
+	}
+
+	// Voltar para diretório original
+	if err := os.Chdir(originalDir); err != nil {
+		return fmt.Errorf("erro ao voltar para diretório original: %w", err)
+	}
+
+	return nil
+}
+
+// GenerateWebFrontend gera a estrutura frontend para Web (SPA)
+func GenerateWebFrontend(projectName string, projectConfig *config.ProjectConfig) error {
+	gen := templates.New(projectName)
+
+	frontendConfig := FrontendConfig{
+		ProjectName: projectName,
+		ServerPort:  projectConfig.ServerPort,
+	}
+
+	// Criar estrutura de pastas frontend
+	frontendDirs := []string{
+		filepath.Join(projectName, "frontend", "src", "composables"),
+		filepath.Join(projectName, "frontend", "src", "api"),
+		filepath.Join(projectName, "frontend", "src", "components"),
+		filepath.Join(projectName, "frontend", "src", "pages"),
+		filepath.Join(projectName, "frontend", "src", "layouts"),
+		filepath.Join(projectName, "frontend", "src", "router"),
+		filepath.Join(projectName, "frontend", "src", "boot"),
+		filepath.Join(projectName, "frontend", "src", "assets"),
+		filepath.Join(projectName, "frontend", "src", "css"),
+	}
+
+	for _, dir := range frontendDirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("erro ao criar diretório %s: %w", dir, err)
+		}
+	}
+
+	// Gerar arquivos frontend
+	frontendFiles := map[string]string{
+		"quasar_config.tmpl":            "frontend/quasar.config.js",
+		"package_json_web.tmpl":         "frontend/package.json",
+		"frontend_env.tmpl":             "frontend/.env",
+		"composable_api.tmpl":           "frontend/src/composables/useApi.ts",
+		"api_client.tmpl":               "frontend/src/api/client.js",
+		"router_config.tmpl":            "frontend/src/router/index.js",
+		"router_routes.tmpl":            "frontend/src/router/routes.js",
+		"app_main.tmpl":                 "frontend/src/main.js",
+		"app_vue.tmpl":                  "frontend/src/App.vue",
+		"index_html.tmpl":               "frontend/index.html",
+		"layout_main.tmpl":              "frontend/src/layouts/MainLayout.vue",
+		"page_index.tmpl":               "frontend/src/pages/IndexPage.vue",
+		"page_error.tmpl":               "frontend/src/pages/ErrorNotFound.vue",
+		"component_essential_link.tmpl": "frontend/src/components/EssentialLink.vue",
+		"boot_axios.tmpl":               "frontend/src/boot/axios.js",
+		"app_scss.tmpl":                 "frontend/src/css/app.scss",
+	}
+
+	for template, output := range frontendFiles {
+		if err := gen.Generate(template, output, frontendConfig); err != nil {
+			return fmt.Errorf("erro ao gerar %s: %w", output, err)
+		}
+	}
+
+	fmt.Println("✓ Estrutura frontend Web criada")
+
+	// Instalar dependências npm
+	fmt.Println("📦 Instalando dependências npm...")
+	frontendPath := filepath.Join(projectName, "frontend")
+
+	// Salvar diretório atual
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("erro ao obter diretório atual: %w", err)
+	}
+
+	// Mudar para diretório frontend
+	if err := os.Chdir(frontendPath); err != nil {
+		return fmt.Errorf("erro ao mudar para diretório frontend: %w", err)
+	}
+
+	npmCmd := exec.Command("npm", "install")
+	npmCmd.Stdout = os.Stdout
+	npmCmd.Stderr = os.Stderr
+
+	if err := npmCmd.Run(); err != nil {
+		fmt.Println("⚠️  Aviso: Erro ao instalar dependências npm. Execute 'npm install' manualmente no diretório frontend.")
+	} else {
+		fmt.Println("✓ Dependências npm instaladas")
+	}
+
+	// Voltar para diretório original
+	if err := os.Chdir(originalDir); err != nil {
+		return fmt.Errorf("erro ao voltar para diretório original: %w", err)
+	}
+
+	return nil
 }

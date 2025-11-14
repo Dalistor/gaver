@@ -1,0 +1,141 @@
+/**
+ * Electron main process
+ * https://www.electronjs.org/docs/latest/tutorial/process-model#the-main-process
+ */
+
+const { app, BrowserWindow } = require('electron')
+const path = require('path')
+const { spawn } = require('child_process')
+const fs = require('fs')
+
+let mainWindow
+let serverProcess = null
+
+// Iniciar servidor Go
+function startGoServer() {
+  try {
+    // Caminho do binário do servidor (no diretório src-electron após build)
+    const serverPath = path.join(__dirname, 'server')
+    const serverPathExe = path.join(__dirname, 'server.exe')
+    
+    // Verificar qual binário existe (Windows usa .exe)
+    let executablePath = null
+    if (process.platform === 'win32') {
+      if (fs.existsSync(serverPathExe)) {
+        executablePath = serverPathExe
+      }
+    } else {
+      if (fs.existsSync(serverPath)) {
+        executablePath = serverPath
+      }
+    }
+
+    if (!executablePath) {
+      console.warn('Servidor Go não encontrado. Continuando sem servidor...')
+      return
+    }
+
+    // Tornar executável (Unix/Linux/Mac)
+    if (process.platform !== 'win32') {
+      fs.chmodSync(executablePath, '755')
+    }
+
+    // Iniciar o servidor
+    serverProcess = spawn(executablePath, [], {
+      cwd: path.dirname(executablePath),
+      stdio: 'inherit',
+      detached: false
+    })
+
+    serverProcess.on('error', (err) => {
+      console.error('Erro ao iniciar servidor Go:', err)
+    })
+
+    serverProcess.on('exit', (code, signal) => {
+      console.log(`Servidor Go encerrado. Código: ${code}, Sinal: ${signal}`)
+      serverProcess = null
+    })
+
+    console.log('Servidor Go iniciado com sucesso')
+  } catch (error) {
+    console.error('Erro ao iniciar servidor Go:', error)
+  }
+}
+
+// Parar servidor Go
+function stopGoServer() {
+  if (serverProcess) {
+    console.log('Parando servidor Go...')
+    if (process.platform === 'win32') {
+      // Windows: usar taskkill
+      spawn('taskkill', ['/pid', serverProcess.pid, '/f', '/t'])
+    } else {
+      // Unix/Linux/Mac: enviar SIGTERM
+      serverProcess.kill('SIGTERM')
+    }
+    serverProcess = null
+  }
+}
+
+function createWindow () {
+  /**
+   * Initial window options
+   */
+  mainWindow = new BrowserWindow({
+    width: 1000,
+    height: 600,
+    useContentSize: true,
+    webPreferences: {
+      // Use pluginOptions.nodeIntegration, leave this alone
+      // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
+      nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
+      contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
+      // More info: /quasar-cli/developing-electron-apps/electron-preload-script
+      preload: path.join(__dirname, 'electron-preload.js')
+    }
+  })
+
+  if (process.env.DEBUGGING) {
+    // if on DEV or Production with debug enabled
+    mainWindow.webContents.openDevTools()
+  } else {
+    // we're on production; no access to devtools pls
+    mainWindow.webContents.on('devtools-opened', () => {
+      mainWindow.webContents.closeDevTools()
+    })
+  }
+
+  mainWindow.loadURL(process.env.APP_URL)
+
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+}
+
+app.whenReady().then(() => {
+  // Iniciar servidor Go antes de criar a janela
+  startGoServer()
+  
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+})
+
+app.on('window-all-closed', () => {
+  // Parar servidor Go antes de sair
+  stopGoServer()
+  
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+app.on('before-quit', () => {
+  // Garantir que o servidor seja parado
+  stopGoServer()
+})
+

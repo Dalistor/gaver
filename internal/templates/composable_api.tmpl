@@ -1,0 +1,42 @@
+import { ref } from 'vue'
+import apiClient from '../api/client'
+
+export function useApi() {
+  const loading = ref(false)
+  const error = ref(null)
+
+  const request = async (method, endpoint, data = null) => {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await apiClient.request({
+        method,
+        url: endpoint,
+        data
+      })
+      return response.data
+    } catch (err) {
+      error.value = err.response?.data || err.message
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const get = (endpoint) => request('GET', endpoint)
+  const post = (endpoint, data) => request('POST', endpoint, data)
+  const put = (endpoint, data) => request('PUT', endpoint, data)
+  const del = (endpoint) => request('DELETE', endpoint)
+
+  return {
+    loading,
+    error,
+    request,
+    get,
+    post,
+    put,
+    delete: del
+  }
+}
+

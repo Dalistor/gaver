@@ -18,6 +18,9 @@
 - Suporte a MySQL, PostgreSQL, SQLite via GORM
 - Framework HTTP com Gin
 - Sistema de rotinas agendadas
+- **Multi-plataforma**: Suporte para projetos Server, Android e Desktop
+- **Frontend integrado**: Quasar Framework pré-configurado para Android (Capacitor) e Desktop (Electron)
+- **Build automatizado**: Geração de APK (Android) e .exe (Desktop)
 
 ## Instalação
 
@@ -37,9 +40,11 @@ go install ./cmd/gaver
 
 ## Quick Start
 
+### Projeto Server (Backend apenas)
+
 ```bash
-# Criar projeto
-gaver init meu-projeto -d mysql
+# Criar projeto server
+gaver init meu-projeto -d mysql -t server
 cd meu-projeto
 go mod tidy
 
@@ -62,7 +67,70 @@ gaver migrate up
 gaver serve
 ```
 
-Servidor disponível em `http://localhost:7077`
+Servidor disponível em `http://localhost:8080`
+
+### Projeto Android
+
+```bash
+# Criar projeto Android
+gaver init meu-app -d mysql -t android
+cd meu-app
+go mod tidy
+
+# Instalar dependências do frontend
+cd frontend
+npm install
+
+# Rodar servidor Go + Quasar dev (simultaneamente)
+cd ..
+gaver serve
+
+# Para abrir Android Studio para debug
+gaver serve --android
+
+# Gerar APK
+gaver build
+```
+
+### Projeto Desktop
+
+```bash
+# Criar projeto Desktop
+gaver init meu-app -d mysql -t desktop
+cd meu-app
+go mod tidy
+
+# Instalar dependências do frontend
+cd frontend
+npm install
+
+# Rodar servidor Go + Quasar dev (simultaneamente)
+cd ..
+gaver serve
+
+# Gerar .exe
+gaver build
+```
+
+### Projeto Web (SPA)
+
+```bash
+# Criar projeto Web
+gaver init meu-app -d mysql -t web
+cd meu-app
+go mod tidy
+
+# Instalar dependências do frontend
+cd frontend
+npm install
+
+# Rodar servidor Go + Quasar dev (simultaneamente)
+cd ..
+gaver serve
+
+# Gerar build estático
+gaver build
+```
 
 ### Rotas geradas automaticamente:
 
@@ -175,42 +243,78 @@ func (m *Manager) RegisterDefaultRoutines() {
 
 ```bash
 # Projeto
-gaver init <nome> [-d database]       # Criar projeto
-gaver serve [-p port]                  # Rodar servidor
+gaver init <nome> [-d database] [-t type]  # Criar projeto
+                                                  # -t: server (padrão), android, desktop, web
+gaver serve [--android]                   # Rodar servidor
+                                                  # --android: abre Android Studio (apenas Android)
+gaver build                                # Compilar projeto
+                                                  # Android: gera AAR do Go e APK com Capacitor
+                                                  # Desktop: gera binário Go e .exe com Electron
+                                                  # Web: gera pasta build/ com binário Go e SPA
+                                                  # Server: build Go normal
 
 # Modules
-gaver module create <nome>             # Criar módulo
-gaver module model <mod> <Model> [...] # Criar model
-gaver module crud <mod> <Model>        # Gerar CRUD
-  --only=list,get                      # Apenas métodos especificados
-  --except=delete                      # Excluir métodos
+gaver module create <nome>                 # Criar módulo
+gaver module model <mod> <Model> [...]    # Criar model
+gaver module crud <mod> <Model>            # Gerar CRUD
+  --only=list,get                          # Apenas métodos especificados
+  --except=delete                          # Excluir métodos
 
 # Migrations
-gaver makemigrations [-n nome]         # Detectar mudanças
-gaver migrate up                       # Aplicar migrations
-gaver migrate down                     # Reverter migrations
-gaver migrate status                   # Ver status
+gaver makemigrations [-n nome]             # Detectar mudanças
+gaver migrate up                           # Aplicar migrations
+gaver migrate down                         # Reverter migrations
+gaver migrate status                       # Ver status
 ```
 
 ## Estrutura
 
+### Projeto Server
+
 ```
 meu-projeto/
-├── cmd/server/         # Aplicação principal
-├── config/            # Configurações
-│   ├── routes/       # Registry de rotas
-│   ├── modules/      # Registro de módulos
-│   ├── database/     # Conexão com banco
+├── GaverProject.json      # Configuração do projeto
+├── cmd/server/            # Aplicação principal
+├── config/                # Configurações
+│   ├── routes/           # Registry de rotas
+│   ├── modules/          # Registro de módulos
+│   ├── database/         # Conexão com banco
 │   └── ...
-├── modules/          # Seus módulos
+├── modules/              # Seus módulos
 │   └── users/
-│       ├── models/         # Models
-│       ├── handlers/       # Controllers
-│       ├── services/       # Lógica
-│       ├── repositories/   # Dados
-│       └── module.go       # Rotas
-├── migrations/       # SQL migrations
+│       ├── models/       # Models
+│       ├── handlers/     # Controllers
+│       ├── services/     # Lógica
+│       ├── repositories/ # Dados
+│       └── module.go     # Rotas
+├── migrations/           # SQL migrations
 └── .env
+```
+
+### Projeto Android/Desktop/Web
+
+```
+meu-projeto/
+├── GaverProject.json      # Configuração do projeto
+├── cmd/server/            # Servidor Go (backend)
+├── frontend/              # Aplicação Quasar
+│   ├── src/
+│   │   ├── composables/  # Composables Vue reutilizáveis
+│   │   │   └── useApi.ts # Composable base para API
+│   │   ├── api/          # Arquivos JS/TS para comunicação com API
+│   │   │   └── client.js # Cliente API base
+│   │   ├── components/   # Componentes Vue
+│   │   ├── pages/        # Páginas/views
+│   │   ├── layouts/      # Layouts
+│   │   ├── router/       # Configuração de rotas (history mode)
+│   │   └── boot/         # Boot files do Quasar
+│   ├── quasar.config.js  # Configuração Quasar (proxy para servidor Go)
+│   ├── package.json
+│   └── [capacitor.config.js (Android) ou electron/ (Desktop) ou nenhum (Web)]
+├── android/               # Projeto Android nativo (apenas Android)
+├── config/               # Configurações backend
+├── modules/              # Módulos backend
+└── migrations/           # SQL migrations
 ```
 
 ## Bancos Suportados
@@ -218,6 +322,58 @@ meu-projeto/
 - MySQL
 - PostgreSQL  
 - SQLite
+
+## Tipos de Projeto
+
+O Gaver suporta três tipos de projetos:
+
+### Server
+Projeto backend apenas, ideal para APIs REST. Estrutura mínima com servidor Go.
+
+### Android
+Projeto completo com backend Go + frontend Quasar com Capacitor. Gera APK para Android.
+- Frontend pré-configurado com Quasar
+- Router em modo history (sem # nas URLs)
+- Cliente API base configurado para comunicação com backend
+- Estrutura organizada para facilitar trabalho de IA no frontend
+- Suporte a filesystem para armazenamento local
+- Build gera AAR do Go e inclui no APK via Capacitor
+
+### Desktop
+Projeto completo com backend Go + frontend Quasar com Electron. Gera executável (.exe no Windows).
+- Frontend pré-configurado com Quasar
+- Router em modo history
+- Cliente API base configurado
+- Estrutura organizada para facilitar trabalho de IA no frontend
+- Build gera binário Go e inclui no instalador Electron
+
+### Web
+Projeto completo com backend Go + frontend Quasar em modo SPA (Single Page Application). Gera build completo para deploy web.
+- Frontend pré-configurado com Quasar (sem Capacitor/Electron)
+- Router em modo history
+- Cliente API base configurado
+- Estrutura organizada para facilitar trabalho de IA no frontend
+- Build gera pasta `build/` com binário Go e SPA prontos para deploy
+
+## Frontend com Quasar
+
+Projetos Android, Desktop e Web incluem Quasar Framework pré-configurado:
+
+- **Proxy automático**: Frontend configurado para apontar ao servidor Go
+- **Router history mode**: URLs sem # (hash)
+- **Estrutura organizada**: Pastas separadas para composables, api, components, pages, layouts
+- **Cliente API base**: Arquivo `client.js` pré-configurado para comunicação com backend
+- **Composable useApi**: Composable Vue reutilizável para facilitar chamadas à API
+- **Pronto para IA**: Estrutura pensada para facilitar trabalho de IA no desenvolvimento do frontend
+
+### Fluxo de Trabalho
+
+1. Dev executa `gaver init projeto -t android` (ou desktop)
+2. Estrutura é criada com Quasar pré-configurado
+3. Dev cria scripts de conexão com API em `frontend/src/api/`
+4. Dev/IA trabalha em `frontend/src/components/` e `frontend/src/pages/`
+5. Dev executa `gaver serve` (ou `gaver serve --android` para debug)
+6. Quando finalizado, executa `gaver build` para gerar dist
 
 ## Versão Atual
 
@@ -230,6 +386,9 @@ meu-projeto/
 - Migrations (makemigrations/migrate)
 - Callbacks Before/After
 - Registro automático de rotas
+- **Multi-plataforma**: Projetos Server, Android e Desktop
+- **Frontend integrado**: Quasar Framework com Capacitor/Electron
+- **Build automatizado**: Geração de APK e .exe
 
 ## Contribuindo
 

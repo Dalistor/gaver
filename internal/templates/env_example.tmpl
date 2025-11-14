@@ -1,0 +1,16 @@
+# Configurações do Servidor Go
+DB_HOST=localhost
+DB_PORT={{.DatabasePort}}
+DB_USER={{.DatabaseUser}}
+DB_PASSWORD=
+DB_NAME={{.ProjectName}}
+DB_SSLMODE=disable
+
+# Porta do servidor
+SERVER_PORT={{.ServerPort}}
+
+# Configurações para o Frontend (Quasar)
+# Variáveis com prefixo VITE_ são expostas ao frontend
+VITE_API_URL=http://localhost:{{.ServerPort}}/api/v1
+VITE_SERVER_PORT={{.ServerPort}}
+

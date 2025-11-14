@@ -37,4 +37,5 @@ func (cli *CLI) registerCommands() {
 	cli.RootCmd.AddCommand(commands.NewMigrationsCommand())
 	cli.RootCmd.AddCommand(commands.NewMigrateCommand())
 	cli.RootCmd.AddCommand(commands.NewServeCommand())
+	cli.RootCmd.AddCommand(commands.NewBuildCommand())
 }

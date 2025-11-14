@@ -1,0 +1,43 @@
+{
+  "name": "{{.ProjectName}}",
+  "version": "0.0.1",
+  "description": "A Quasar Project",
+  "productName": "{{.ProjectName}}",
+  "author": "",
+  "private": true,
+  "scripts": {
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx,.vue",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,scss,md}\"",
+    "dev": "quasar dev",
+    "build": "quasar build"
+  },
+  "dependencies": {
+    "@quasar/extras": "^1.16.9",
+    "axios": "^1.7.7",
+    "quasar": "^2.15.1",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@quasar/app-vite": "^2.0.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-vue": "^9.32.0",
+    "prettier": "^3.4.2"
+  },
+  "browserslist": [
+    "last 10 Chrome versions",
+    "last 10 Firefox versions",
+    "last 4 Edge versions",
+    "last 7 Safari versions",
+    "last 8 Android versions",
+    "last 8 ChromeAndroid versions",
+    "last 8 FirefoxAndroid versions",
+    "last 10 iOS versions",
+    "last 5 Opera versions"
+  ],
+  "engines": {
+    "node": ">= 18.0.0",
+    "npm": ">= 9.0.0"
+  }
+}
+

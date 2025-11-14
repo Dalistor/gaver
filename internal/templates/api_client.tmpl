@@ -1,0 +1,45 @@
+import axios from 'axios'
+
+// Configuração base do cliente API
+// Usa VITE_API_URL do .env (variáveis com prefixo VITE_ são expostas pelo Vite)
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:{{.ServerPort}}/api/v1',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+// Interceptor de requisição
+apiClient.interceptors.request.use(
+  (config) => {
+    // Adicionar token de autenticação se existir
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// Interceptor de resposta
+apiClient.interceptors.response.use(
+  (response) => {
+    return response
+  },
+  (error) => {
+    // Tratamento de erros global
+    if (error.response?.status === 401) {
+      // Redirecionar para login se não autenticado
+      localStorage.removeItem('auth_token')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
+export default apiClient
+

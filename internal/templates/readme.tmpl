@@ -29,13 +29,22 @@ gaver migrate
 
 4. Iniciar servidor:
 ```bash
+# Para projetos server
 go run cmd/server/main.go
+# ou
+gaver serve
+
+# Para projetos Android/Desktop
+gaver serve
+# (inicia servidor Go + Quasar dev simultaneamente)
 ```
 
 ## 📁 Estrutura do Projeto
 
+{{if eq .ProjectType "server"}}
 ```
 {{.ProjectName}}/
+├── GaverProject.json    # Configuração do projeto
 ├── cmd/
 │   └── server/          # Aplicação principal
 ├── config/
@@ -44,14 +53,157 @@ go run cmd/server/main.go
 │   ├── env/            # Variáveis de ambiente
 │   ├── middlewares/    # Middlewares HTTP
 │   └── routines/       # Tarefas agendadas
-├── internal/
-│   └── app/
-│       ├── handlers/   # Controllers HTTP
-│       ├── models/     # Models do banco
-│       ├── repositories/ # Camada de dados
-│       └── services/   # Lógica de negócio
+├── modules/            # Seus módulos
+│   └── [nome-modulo]/
+│       ├── models/     # Models
+│       ├── handlers/   # Controllers
+│       ├── services/   # Lógica
+│       └── repositories/ # Dados
 └── migrations/         # Migrations SQL
 ```
+{{else if eq .ProjectType "android"}}
+```
+{{.ProjectName}}/
+├── GaverProject.json    # Configuração do projeto
+├── cmd/server/          # Servidor Go (backend)
+├── frontend/            # Aplicação Quasar
+│   ├── src/
+│   │   ├── composables/ # Composables Vue reutilizáveis
+│   │   │   └── useApi.ts
+│   │   ├── api/         # Arquivos JS/TS para comunicação com API
+│   │   │   └── client.js
+│   │   ├── components/  # Componentes Vue
+│   │   ├── pages/       # Páginas/views
+│   │   ├── layouts/     # Layouts
+│   │   ├── router/      # Configuração de rotas (history mode)
+│   │   └── boot/        # Boot files do Quasar
+│   ├── quasar.config.js # Configuração Quasar (proxy para servidor Go)
+│   ├── capacitor.config.js
+│   └── package.json
+├── android/             # Projeto Android nativo
+├── config/              # Configurações backend
+├── modules/             # Módulos backend
+└── migrations/          # SQL migrations
+```
+{{else if eq .ProjectType "desktop"}}
+```
+{{.ProjectName}}/
+├── GaverProject.json    # Configuração do projeto
+├── cmd/server/          # Servidor Go (backend)
+├── frontend/            # Aplicação Quasar
+│   ├── src/
+│   │   ├── composables/ # Composables Vue reutilizáveis
+│   │   │   └── useApi.ts
+│   │   ├── api/         # Arquivos JS/TS para comunicação com API
+│   │   │   └── client.js
+│   │   ├── components/  # Componentes Vue
+│   │   ├── pages/       # Páginas/views
+│   │   ├── layouts/     # Layouts
+│   │   ├── router/      # Configuração de rotas (history mode)
+│   │   └── boot/        # Boot files do Quasar
+│   ├── quasar.config.js # Configuração Quasar (proxy para servidor Go)
+│   ├── src-electron/    # Configuração Electron
+│   └── package.json
+├── config/              # Configurações backend
+├── modules/             # Módulos backend
+└── migrations/         # SQL migrations
+```
+{{else if eq .ProjectType "web"}}
+```
+{{.ProjectName}}/
+├── GaverProject.json    # Configuração do projeto
+├── cmd/server/          # Servidor Go (backend)
+├── frontend/            # Aplicação Quasar
+│   ├── src/
+│   │   ├── composables/ # Composables Vue reutilizáveis
+│   │   │   └── useApi.ts
+│   │   ├── api/         # Arquivos JS/TS para comunicação com API
+│   │   │   └── client.js
+│   │   ├── components/  # Componentes Vue
+│   │   ├── pages/       # Páginas/views
+│   │   ├── layouts/     # Layouts
+│   │   ├── router/      # Configuração de rotas (history mode)
+│   │   └── boot/        # Boot files do Quasar
+│   ├── quasar.config.js # Configuração Quasar (proxy para servidor Go)
+│   └── package.json
+├── config/              # Configurações backend
+├── modules/             # Módulos backend
+└── migrations/         # SQL migrations
+```
+{{else}}
+```
+{{.ProjectName}}/
+├── GaverProject.json    # Configuração do projeto
+├── cmd/
+│   └── server/          # Aplicação principal
+├── config/
+│   ├── cors/           # Configuração CORS
+│   ├── database/       # Conexão com banco
+│   ├── env/            # Variáveis de ambiente
+│   ├── middlewares/    # Middlewares HTTP
+│   └── routines/       # Tarefas agendadas
+├── modules/            # Seus módulos
+└── migrations/         # Migrations SQL
+```
+{{end}}
+
+{{if or (eq .ProjectType "android") (eq .ProjectType "desktop")}}
+## 🎨 Frontend com Quasar
+
+Este projeto inclui Quasar Framework pré-configurado:
+
+- **Proxy automático**: Frontend configurado para apontar ao servidor Go (localhost:8080)
+- **Router history mode**: URLs sem # (hash)
+- **Estrutura organizada**: Pastas separadas para facilitar desenvolvimento
+- **Cliente API base**: Arquivo `frontend/src/api/client.js` pré-configurado
+- **Composable useApi**: Composable Vue reutilizável em `frontend/src/composables/useApi.ts`
+
+### Desenvolvimento Frontend
+
+1. O servidor Go e Quasar dev rodam simultaneamente com `gaver serve`
+2. Crie scripts de conexão com API em `frontend/src/api/`
+3. Desenvolva componentes em `frontend/src/components/`
+4. Crie páginas em `frontend/src/pages/`
+5. Use o composable `useApi` para facilitar chamadas à API
+
+### Exemplo de uso do useApi
+
+```vue
+<script setup>
+import { useApi } from 'src/composables/useApi'
+
+const { get, post, loading, error } = useApi()
+
+const fetchUsers = async () => {
+  try {
+    const users = await get('/users')
+    console.log(users)
+  } catch (err) {
+    console.error(err)
+  }
+}
+</script>
+```
+
+{{if eq .ProjectType "android"}}
+### Android
+
+- **Capacitor**: Configurado para desenvolvimento Android
+- **Filesystem**: Suporte a armazenamento local via filesystem
+- **Build**: Execute `gaver build` para gerar APK
+{{else if eq .ProjectType "desktop"}}
+### Desktop
+
+- **Electron**: Configurado para aplicações desktop
+- **Build**: Execute `gaver build` para gerar executável (.exe no Windows)
+{{else if eq .ProjectType "web"}}
+### Web
+
+- **SPA**: Single Page Application configurada
+- **Build**: Execute `gaver build` para gerar arquivos estáticos em `dist/spa`
+- **Deploy**: Os arquivos podem ser servidos por qualquer servidor web (Nginx, Apache, etc)
+{{end}}
+{{end}}
 
 ## 🔄 Sistema de Rotinas
 
@@ -108,6 +260,28 @@ Para desabilitar o sistema de rotinas, comente as linhas no `main.go`:
 ```
 
 ## 🛠️ Comandos Gaver
+
+### Servidor
+
+```bash
+# Rodar servidor
+gaver serve
+
+# Para projetos Android/Desktop, também inicia o Quasar dev server
+# Para Android, use --android para abrir Android Studio
+gaver serve --android
+```
+
+### Build
+
+```bash
+# Compilar projeto
+gaver build
+
+# Android: gera APK em frontend/dist e frontend/android/app/build/outputs/apk/
+# Desktop: gera .exe em frontend/dist/electron/
+# Server: gera bin/server
+```
 
 ### Gerar Model
 
