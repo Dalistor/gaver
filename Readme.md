@@ -4,7 +4,7 @@
 
 **Framework multi-plataforma para Go com CLI, geração de código e ORM**
 
-[![Version](https://img.shields.io/badge/version-1.1.0-FF6B35?style=flat-square)](https://github.com/Dalistor/gaver/releases)
+[![Version](https://img.shields.io/badge/version-1.1.1-FF6B35?style=flat-square)](https://github.com/Dalistor/gaver/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-000000?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Web%20%7C%20Desktop%20Windows-FF6B35?style=flat-square)](https://github.com/Dalistor/gaver)

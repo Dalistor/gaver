@@ -2,9 +2,9 @@
 
 <div align="center">
 
-**v1.1.0** - Framework multi-plataforma para Go
+**v1.1.1** - Framework multi-plataforma para Go
 
-[![Version](https://img.shields.io/badge/version-1.1.0-FF6B35?style=flat-square)](https://github.com/Dalistor/gaver/releases)
+[![Version](https://img.shields.io/badge/version-1.1.1-FF6B35?style=flat-square)](https://github.com/Dalistor/gaver/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-000000?style=flat-square)](LICENSE)
 
@@ -940,7 +940,7 @@ meu-projeto/
 
 ## Versão Atual
 
-**v1.1.0** - Suporte completo para Web e Desktop Windows
+**v1.1.1** - Suporte completo para Web e Desktop Windows
 
 ### Compatibilidade
 
