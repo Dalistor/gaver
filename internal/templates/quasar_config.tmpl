@@ -172,7 +172,7 @@ module.exports = function (ctx) {
       // specify the debugging port to use for the Electron app when running in development mode
       inspectPort: 5858,
 
-      bundler: 'packager', // 'packager' or 'builder'
+      bundler: 'builder', // 'packager' or 'builder' - usando builder para gerar instalador
 
       packager: {
         // https://github.com/electron-userland/electron-packager/blob/master/docs/api.md#options
@@ -190,7 +190,41 @@ module.exports = function (ctx) {
       builder: {
         // https://www.electron.build/configuration/configuration
 
-        appId: '{{.ProjectName}}'
+        appId: '{{.ProjectName}}',
+        productName: '{{.ProjectName}}',
+        
+        win: {
+          target: ['nsis'], // Gerar instalador NSIS para Windows
+          icon: 'src-electron/icons/icon.ico' // Ícone gerado pelo icon-genie
+        },
+        
+        // Incluir arquivos adicionais (server.exe, database.db, .env) em resources/
+        // Esses arquivos estarão disponíveis em process.resourcesPath
+        extraResources: [
+          {
+            from: 'src-electron/server.exe',
+            to: 'server.exe',
+            filter: ['**/*']
+          },
+          {
+            from: 'src-electron/database.db',
+            to: 'database.db',
+            filter: ['**/*']
+          },
+          {
+            from: 'src-electron/.env',
+            to: '.env',
+            filter: ['**/*']
+          }
+        ],
+        
+        // Configurações do instalador NSIS
+        nsis: {
+          oneClick: false, // Permitir escolher diretório de instalação
+          allowToChangeInstallationDirectory: true,
+          createDesktopShortcut: true,
+          createStartMenuShortcut: true
+        }
       }
     },
 

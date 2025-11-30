@@ -2,6 +2,7 @@ package structure
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -300,6 +301,52 @@ func GenerateDesktopFrontend(projectName string, projectConfig *config.ProjectCo
 		}
 	}
 
+	// Copiar logo.png para assets do projeto
+	assetsPath := filepath.Join(projectName, "frontend", "src", "assets")
+	logoDest := filepath.Join(assetsPath, "logo.png")
+	
+	// Obter diretório atual para tentar encontrar o logo
+	currentDir, _ := os.Getwd()
+	
+	// Tentar encontrar o logo em diferentes locais
+	possibleLogoPaths := []string{
+		filepath.Join("assets", "logo.png"),                    // Diretório atual (desenvolvimento)
+		filepath.Join("..", "assets", "logo.png"),              // Um nível acima
+		filepath.Join("..", "..", "assets", "logo.png"),       // Dois níveis acima
+		filepath.Join(currentDir, "assets", "logo.png"),        // Diretório atual absoluto
+	}
+	
+	var logoSource string
+	for _, possiblePath := range possibleLogoPaths {
+		if _, err := os.Stat(possiblePath); err == nil {
+			logoSource = possiblePath
+			break
+		}
+	}
+	
+	// Se encontrou o logo, copiar
+	if logoSource != "" {
+		sourceFile, err := os.Open(logoSource)
+		if err == nil {
+			defer sourceFile.Close()
+			
+			destFile, err := os.Create(logoDest)
+			if err == nil {
+				defer destFile.Close()
+				
+				_, err = io.Copy(destFile, sourceFile)
+				if err == nil {
+					fmt.Println("✓ Logo copiado para assets/")
+				} else {
+					fmt.Printf("⚠️  Aviso: Erro ao copiar logo: %v\n", err)
+				}
+			}
+		}
+	} else {
+		fmt.Println("ℹ️  Logo não encontrado - será necessário adicionar src/assets/logo.png manualmente")
+		fmt.Println("   Você pode copiar o logo de assets/logo.png do framework ou usar seu próprio logo")
+	}
+
 	// Instalar dependências npm (inclui Electron)
 	fmt.Println("📦 Instalando dependências npm (incluindo Electron)...")
 	frontendPath := filepath.Join(projectName, "frontend")
@@ -323,6 +370,29 @@ func GenerateDesktopFrontend(projectName string, projectConfig *config.ProjectCo
 		fmt.Println("⚠️  Aviso: Erro ao instalar dependências npm. Execute 'npm install' manualmente no diretório frontend.")
 	} else {
 		fmt.Println("✓ Dependências npm instaladas (Electron incluído)")
+	}
+
+	// Gerar ícones do Electron usando @quasar/icongenie (CLI standalone)
+	// Verificar se o logo existe antes de tentar gerar ícones
+	logoPath := filepath.Join("src", "assets", "logo.png")
+	if _, err := os.Stat(logoPath); err == nil {
+		fmt.Println("🎨 Gerando ícones do Electron...")
+		// @quasar/icongenie já está instalado via npm install
+		// Usar caminho absoluto do logo para evitar problemas
+		absLogoPath, _ := filepath.Abs(logoPath)
+		iconGenieCmd := exec.Command("npx", "icongenie", "generate", "-i", absLogoPath, "-m", "electron")
+		iconGenieCmd.Stdout = os.Stdout
+		iconGenieCmd.Stderr = os.Stderr
+		
+		if err := iconGenieCmd.Run(); err != nil {
+			fmt.Println("⚠️  Aviso: Erro ao gerar ícones. Execute 'npm run generate:icons' manualmente.")
+			fmt.Println("   Certifique-se de que @quasar/icongenie está instalado.")
+		} else {
+			fmt.Println("✓ Ícones do Electron gerados")
+		}
+	} else {
+		fmt.Println("ℹ️  Logo não encontrado em src/assets/logo.png - ícones não serão gerados")
+		fmt.Println("   Adicione o logo e execute 'npm run generate:icons' manualmente")
 	}
 
 	// Voltar para diretório original

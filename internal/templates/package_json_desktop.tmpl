@@ -12,7 +12,8 @@
     "build": "quasar build -m electron",
     "electron:dev": "quasar dev -m electron",
     "electron:build": "quasar build -m electron",
-    "electron:pack": "quasar build -m electron -P win32"
+    "electron:pack": "quasar build -m electron -P win32",
+    "generate:icons": "icongenie generate -i src/assets/logo.png -m electron"
   },
   "dependencies": {
     "@quasar/extras": "^1.16.9",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@quasar/app-vite": "^2.0.0",
+    "@quasar/icongenie": "^2.0.0",
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
     "eslint": "^8.57.1",

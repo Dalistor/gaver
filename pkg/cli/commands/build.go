@@ -316,6 +316,19 @@ func buildDesktop(projectConfig *config.ProjectConfig) error {
 		}
 	}
 
+	// Copiar arquivo .env para src-electron/ se existir (para o extraResources do electron-builder)
+	envSource := ".env"
+	if _, err := os.Stat(envSource); err == nil {
+		envDest := filepath.Join(electronPath, ".env")
+		if err := copyFile(envSource, envDest); err != nil {
+			fmt.Printf("⚠️  Aviso: Erro ao copiar .env para src-electron/: %v\n", err)
+		} else {
+			fmt.Println("✓ Arquivo .env copiado para src-electron/")
+		}
+	} else {
+		fmt.Println("ℹ️  Arquivo .env não encontrado na raiz do projeto")
+	}
+
 	// 3. Build do Quasar Electron
 	fmt.Println("📦 Compilando Quasar Electron...")
 	quasarBuildCmd := exec.Command("quasar", "build", "-m", "electron")
@@ -327,20 +340,138 @@ func buildDesktop(projectConfig *config.ProjectConfig) error {
 		return fmt.Errorf("erro ao compilar Quasar Electron: %w", err)
 	}
 
+	// 4. Com electron-builder, os arquivos são copiados automaticamente via extraResources
+	// Mas vamos verificar se foram copiados corretamente e informar ao usuário
+	// O electron-builder gera estrutura diferente: dist/electron/win-unpacked/ ou dist/electron/
+
+	distPath := filepath.Join(frontendPath, "dist", "electron")
+
+	// Verificar estrutura do builder (win-unpacked)
+	winUnpackedPath := filepath.Join(distPath, "win-unpacked")
+	if _, err := os.ReadDir(winUnpackedPath); err == nil {
+		// Estrutura do electron-builder encontrada
+		resourcesPath := filepath.Join(winUnpackedPath, "resources")
+
+		// Verificar se os arquivos foram copiados pelo extraResources
+		serverExePath := filepath.Join(resourcesPath, "server.exe")
+		if runtime.GOOS != "windows" {
+			serverExePath = filepath.Join(resourcesPath, "server")
+		}
+
+		if _, err := os.Stat(serverExePath); err == nil {
+			fmt.Printf("✓ Servidor Go encontrado em resources/ (copiado pelo electron-builder)\n")
+		} else {
+			// Fallback: copiar manualmente se não foi copiado pelo builder
+			fmt.Println("⚠️  Servidor Go não encontrado em resources/, copiando manualmente...")
+			if err := os.MkdirAll(resourcesPath, 0755); err == nil {
+				serverSource := filepath.Join(electronPath, "server.exe")
+				if runtime.GOOS != "windows" {
+					serverSource = filepath.Join(electronPath, "server")
+				}
+				if _, err := os.Stat(serverSource); err == nil {
+					serverDest := filepath.Join(resourcesPath, filepath.Base(serverSource))
+					if err := copyFile(serverSource, serverDest); err == nil {
+						fmt.Printf("✓ Servidor Go copiado manualmente para resources/\n")
+					}
+				}
+			}
+		}
+
+		// Verificar banco e .env
+		if projectConfig.Database == "sqlite" {
+			dbPath := filepath.Join(resourcesPath, "database.db")
+			if _, err := os.Stat(dbPath); err != nil {
+				// Copiar manualmente se não foi copiado
+				dbSource := filepath.Join(electronPath, "database.db")
+				if _, err := os.Stat(dbSource); err == nil {
+					if err := copyFile(dbSource, dbPath); err == nil {
+						fmt.Printf("✓ Banco SQLite copiado manualmente para resources/\n")
+					}
+				}
+			}
+		}
+
+		envPath := filepath.Join(resourcesPath, ".env")
+		if _, err := os.Stat(envPath); err != nil {
+			// Copiar manualmente se não foi copiado
+			envSource := ".env"
+			if _, err := os.Stat(envSource); err == nil {
+				if err := copyFile(envSource, envPath); err == nil {
+					fmt.Printf("✓ Arquivo .env copiado manualmente para resources/\n")
+				}
+			}
+		}
+	} else {
+		// Estrutura antiga do packager (Packaged)
+		packagedPath := filepath.Join(distPath, "Packaged")
+		if entries, err := os.ReadDir(packagedPath); err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					resourcesPath := filepath.Join(packagedPath, entry.Name(), "resources")
+					if err := os.MkdirAll(resourcesPath, 0755); err == nil {
+						// Copiar servidor Go
+						serverSource := filepath.Join(electronPath, "server.exe")
+						if runtime.GOOS != "windows" {
+							serverSource = filepath.Join(electronPath, "server")
+						}
+						if _, err := os.Stat(serverSource); err == nil {
+							serverDest := filepath.Join(resourcesPath, filepath.Base(serverSource))
+							if err := copyFile(serverSource, serverDest); err == nil {
+								fmt.Printf("✓ Servidor Go copiado para resources/: %s\n", serverDest)
+							}
+						}
+
+						// Copiar banco SQLite se existir
+						if projectConfig.Database == "sqlite" {
+							dbSource := filepath.Join(electronPath, "database.db")
+							if _, err := os.Stat(dbSource); err == nil {
+								dbDest := filepath.Join(resourcesPath, "database.db")
+								if err := copyFile(dbSource, dbDest); err == nil {
+									fmt.Printf("✓ Banco SQLite copiado para resources/: %s\n", dbDest)
+								}
+							}
+						}
+
+						// Copiar arquivo .env se existir
+						envSource := ".env"
+						if _, err := os.Stat(envSource); err == nil {
+							envDest := filepath.Join(resourcesPath, ".env")
+							if err := copyFile(envSource, envDest); err == nil {
+								fmt.Printf("✓ Arquivo .env copiado para resources/: %s\n", envDest)
+							} else {
+								fmt.Printf("⚠️  Aviso: Erro ao copiar .env: %v\n", err)
+							}
+						} else {
+							fmt.Println("ℹ️  Arquivo .env não encontrado - usando variáveis de ambiente do sistema")
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Limpar binário temporário
 	os.Remove("server")
 
-	// O .exe será gerado pelo Electron Builder com o binário incluído
-	distPath := filepath.Join(frontendPath, "dist", "electron")
+	// O instalador .exe será gerado pelo Electron Builder
+	// distPath já foi declarado acima
 
 	fmt.Printf("✓ Build concluído!\n")
 	fmt.Printf("📁 Diretório dist: %s\n", distPath)
 
-	// Procurar pelo .exe gerado
-	exeFiles, _ := filepath.Glob(filepath.Join(distPath, "**", "*.exe"))
-	if len(exeFiles) > 0 {
-		fmt.Printf("💾 Executável: %s\n", exeFiles[0])
+	// Procurar pelo instalador .exe gerado pelo electron-builder (NSIS)
+	installerFiles, _ := filepath.Glob(filepath.Join(distPath, "*.exe"))
+	if len(installerFiles) > 0 {
+		fmt.Printf("💾 Instalador gerado: %s\n", installerFiles[0])
+	} else {
+		// Procurar também por executável não empacotado
+		exeFiles, _ := filepath.Glob(filepath.Join(distPath, "**", "*.exe"))
+		if len(exeFiles) > 0 {
+			fmt.Printf("💾 Executável: %s\n", exeFiles[0])
+		}
 	}
+
+	fmt.Println("ℹ️  Com electron-builder, os arquivos (server.exe, database.db, .env) são incluídos automaticamente via extraResources")
 
 	return nil
 }

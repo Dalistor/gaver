@@ -35,24 +35,55 @@ function startGoServer() {
     }
     
     // Verificar se existe banco embutido e copiar para diretório de dados
-    // O banco embutido estará no mesmo diretório do executável (src-electron após build)
-    const embeddedDBPath = path.join(__dirname, 'database.db')
+    // Quando empacotado, os arquivos podem estar em resources/ (fora do asar)
+    // Quando não empacotado, estão no mesmo diretório do electron-main.js
+    const isInAsar = __dirname.includes('app.asar')
+    let embeddedDBPath = null
+    
+    if (isInAsar) {
+      // Dentro do asar, procurar em resources/ (fora do asar)
+      // process.resourcesPath aponta para o diretório resources/
+      embeddedDBPath = path.join(process.resourcesPath, 'database.db')
+      console.log('App empacotado: procurando banco em resources/', embeddedDBPath)
+    } else {
+      // Não empacotado, procurar no mesmo diretório
+      embeddedDBPath = path.join(__dirname, 'database.db')
+      console.log('App não empacotado: procurando banco em', embeddedDBPath)
+    }
+    
     // Usar nome do projeto ou 'app' como padrão
     const dbName = '{{.ProjectName}}' || 'app'
     const finalDBPath = path.join(appDataDir, dbName + '.db')
     
-    if (fs.existsSync(embeddedDBPath) && !fs.existsSync(finalDBPath)) {
+    if (embeddedDBPath && fs.existsSync(embeddedDBPath) && !fs.existsSync(finalDBPath)) {
       try {
         fs.copyFileSync(embeddedDBPath, finalDBPath)
         console.log('✓ Banco SQLite embutido copiado para:', finalDBPath)
       } catch (err) {
         console.error('Erro ao copiar banco SQLite embutido:', err)
       }
+    } else if (embeddedDBPath && !fs.existsSync(embeddedDBPath)) {
+      console.log('ℹ️  Banco embutido não encontrado em:', embeddedDBPath)
+      console.log('   O banco será criado automaticamente em:', finalDBPath)
     }
     
-    // Caminho do binário do servidor (no diretório src-electron após build)
-    const serverPath = path.join(__dirname, 'server')
-    const serverPathExe = path.join(__dirname, 'server.exe')
+    // Caminho do binário do servidor
+    // Quando empacotado, procurar em resources/ (fora do asar)
+    // Quando não empacotado, procurar no mesmo diretório do electron-main.js
+    let serverPath = null
+    let serverPathExe = null
+    
+    if (isInAsar) {
+      // Dentro do asar, procurar em resources/ (fora do asar)
+      serverPath = path.join(process.resourcesPath, 'server')
+      serverPathExe = path.join(process.resourcesPath, 'server.exe')
+      console.log('App empacotado: procurando servidor em resources/')
+    } else {
+      // Não empacotado, procurar no mesmo diretório
+      serverPath = path.join(__dirname, 'server')
+      serverPathExe = path.join(__dirname, 'server.exe')
+      console.log('App não empacotado: procurando servidor em', __dirname)
+    }
     
     // Verificar qual binário existe (Windows usa .exe)
     let executablePath = null
@@ -76,16 +107,43 @@ function startGoServer() {
       fs.chmodSync(executablePath, '755')
     }
 
+    // Configurar variáveis de ambiente para o servidor Go
+    const serverEnv = {
+      ...process.env,
+      APP_DATA_DIR: appDataDir
+    }
+    
+    // Se existe .env em resources/, adicionar ao PATH ou usar variável para o servidor encontrar
+    // O servidor Go procura .env no diretório atual de execução
+    const envPath = isInAsar 
+      ? path.join(process.resourcesPath, '.env')
+      : path.join(__dirname, '.env')
+    
+    if (fs.existsSync(envPath)) {
+      console.log('✓ Arquivo .env encontrado em:', envPath)
+      // O servidor Go vai procurar o .env no diretório de trabalho (cwd)
+      // Vamos definir o cwd como o diretório onde está o .env
+    } else {
+      console.log('ℹ️  Arquivo .env não encontrado - servidor usará variáveis de ambiente do sistema')
+    }
+    
+    // Definir diretório de trabalho como o diretório do servidor (onde está o .env)
+    const serverCwd = isInAsar 
+      ? process.resourcesPath  // resources/ contém .env e server.exe
+      : path.dirname(executablePath)  // Mesmo diretório do executável
+    
     // Iniciar o servidor com APP_DATA_DIR configurado
+    // Usar 'pipe' ao invés de 'inherit' para esconder o console CMD
     serverProcess = spawn(executablePath, [], {
-      cwd: path.dirname(executablePath),
-      stdio: 'inherit',
+      cwd: serverCwd,
+      stdio: 'pipe', // Esconde o console CMD
       detached: false,
-      env: {
-        ...process.env,
-        APP_DATA_DIR: appDataDir
-      }
+      env: serverEnv
     })
+    
+    // Opcionalmente, redirecionar stdout/stderr para logs (se necessário)
+    // serverProcess.stdout.on('data', (data) => { console.log(`Server: ${data}`) })
+    // serverProcess.stderr.on('data', (data) => { console.error(`Server Error: ${data}`) })
 
     serverProcess.on('error', (err) => {
       console.error('Erro ao iniciar servidor Go:', err)
@@ -126,6 +184,9 @@ function createWindow () {
     width: 1000,
     height: 600,
     useContentSize: true,
+    // Remover barra de menu em produção
+    autoHideMenuBar: !isDev, // Esconder barra de menu em produção
+    frame: true, // Manter frame da janela
     webPreferences: {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
@@ -133,12 +194,18 @@ function createWindow () {
       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION
     }
   })
+  
+  // Remover menu completamente em produção
+  if (!isDev) {
+    mainWindow.setMenuBarVisibility(false)
+  }
 
-  if (process.env.DEBUGGING) {
+  // Abrir DevTools apenas em desenvolvimento
+  if (isDev || process.env.DEBUGGING) {
     // if on DEV or Production with debug enabled
     mainWindow.webContents.openDevTools()
   } else {
-    // we're on production; no access to devtools pls
+    // Em produção, não abrir DevTools
     mainWindow.webContents.on('devtools-opened', () => {
       mainWindow.webContents.closeDevTools()
     })
@@ -159,10 +226,69 @@ function createWindow () {
       appUrl = 'http://localhost:9000'
       console.warn('APP_URL não definido, usando fallback para dev:', appUrl)
     } else {
-      // No build, usar arquivos estáticos
-      const distPath = path.join(__dirname, '../dist/index.html')
-      appUrl = `file://${distPath}`
-      console.warn('APP_URL não definido, usando fallback para build:', appUrl)
+      // No build, quando empacotado com electron-builder:
+      // - app.getAppPath() retorna o caminho do app.asar (ex: .../resources/app.asar)
+      // - O index.html está em app.asar/dist/electron/UnPackaged/index.html
+      const appPath = app.getAppPath()
+      const isInAsar = appPath.includes('app.asar')
+      
+      let foundPath = null
+      
+      // Tentar diferentes estruturas de build do Quasar/electron-builder
+      const possiblePaths = [
+        // Dentro do app.asar (estrutura padrão do Quasar com electron-builder)
+        path.join(appPath, 'dist', 'electron', 'UnPackaged', 'index.html'),
+        // Estrutura alternativa (sem dist)
+        path.join(appPath, 'electron', 'UnPackaged', 'index.html'),
+        // Diretamente no asar
+        path.join(appPath, 'index.html'),
+        // Estrutura do packager antigo
+        path.join(appPath, 'dist', 'electron', 'UnPackaged', 'index.html'),
+        // Fallback: mesmo diretório do electron-main.js (dentro do asar)
+        path.join(__dirname, 'index.html'),
+        // Tentar um nível acima do electron-main.js
+        path.join(__dirname, '..', 'index.html'),
+        path.join(__dirname, '..', 'dist', 'electron', 'UnPackaged', 'index.html'),
+      ]
+      
+      console.log('🔍 Procurando index.html...')
+      console.log('app.getAppPath():', appPath)
+      console.log('__dirname:', __dirname)
+      console.log('isInAsar:', isInAsar)
+      
+      for (const possiblePath of possiblePaths) {
+        console.log('Tentando:', possiblePath)
+        try {
+          if (fs.existsSync(possiblePath)) {
+            foundPath = possiblePath
+            console.log('✓ Arquivo index.html encontrado em:', foundPath)
+            break
+          }
+        } catch (err) {
+          console.log('Erro ao verificar:', possiblePath, err.message)
+        }
+      }
+      
+      if (foundPath) {
+        // Converter caminho Windows para formato file:// correto
+        // Se estiver dentro do asar, usar o caminho relativo
+        if (isInAsar) {
+          // Dentro do asar, usar caminho relativo ao app.asar
+          const relativePath = foundPath.replace(appPath + path.sep, '')
+          appUrl = `file://${foundPath.replace(/\\/g, '/')}`
+        } else {
+          appUrl = `file://${foundPath.replace(/\\/g, '/')}`
+        }
+        console.log('✓ Usando caminho encontrado:', appUrl)
+      } else {
+        // Último fallback: usar caminho padrão do Quasar dentro do asar
+        // O Quasar geralmente coloca index.html em dist/electron/UnPackaged/
+        const defaultPath = path.join(appPath, 'dist', 'electron', 'UnPackaged', 'index.html')
+        appUrl = `file://${defaultPath.replace(/\\/g, '/')}`
+        console.warn('⚠️  Arquivo index.html não encontrado, usando caminho padrão do Quasar')
+        console.warn('Caminho padrão:', appUrl)
+        console.warn('Se não funcionar, verifique a estrutura do build em:', appPath)
+      }
     }
   }
   
@@ -182,7 +308,13 @@ function createWindow () {
       mainWindow.loadURL(appUrl)
     }, 1000)
   } else {
-    mainWindow.loadURL(appUrl)
+    // No build, tentar carregar e tratar erros
+    mainWindow.loadURL(appUrl).catch((err) => {
+      console.error('Erro ao carregar URL:', err)
+      console.error('URL tentada:', appUrl)
+      // Tentar carregar página de erro
+      mainWindow.loadURL(`data:text/html,<html><body><h1>Erro ao carregar aplicação</h1><p>URL: ${appUrl}</p><p>Erro: ${err.message}</p><p>__dirname: ${__dirname}</p><p>Verifique o console para mais detalhes.</p></body></html>`)
+    })
   }
 
   mainWindow.on('closed', () => {
