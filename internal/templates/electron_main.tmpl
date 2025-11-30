@@ -3,7 +3,7 @@
  * https://www.electronjs.org/docs/latest/tutorial/process-model#the-main-process
  */
 
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, Menu } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
 const fs = require('fs')
@@ -323,6 +323,11 @@ function createWindow () {
 }
 
 app.whenReady().then(() => {
+  // Remover menu completamente em produção
+  if (!isDev) {
+    Menu.setApplicationMenu(null)
+  }
+  
   // Iniciar servidor Go antes de criar a janela
   startGoServer()
   

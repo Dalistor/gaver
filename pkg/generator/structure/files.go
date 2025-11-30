@@ -304,18 +304,18 @@ func GenerateDesktopFrontend(projectName string, projectConfig *config.ProjectCo
 	// Copiar logo.png para assets do projeto
 	assetsPath := filepath.Join(projectName, "frontend", "src", "assets")
 	logoDest := filepath.Join(assetsPath, "logo.png")
-	
+
 	// Obter diretório atual para tentar encontrar o logo
 	currentDir, _ := os.Getwd()
-	
+
 	// Tentar encontrar o logo em diferentes locais
 	possibleLogoPaths := []string{
-		filepath.Join("assets", "logo.png"),                    // Diretório atual (desenvolvimento)
-		filepath.Join("..", "assets", "logo.png"),              // Um nível acima
-		filepath.Join("..", "..", "assets", "logo.png"),       // Dois níveis acima
-		filepath.Join(currentDir, "assets", "logo.png"),        // Diretório atual absoluto
+		filepath.Join("assets", "logo.png"),             // Diretório atual (desenvolvimento)
+		filepath.Join("..", "assets", "logo.png"),       // Um nível acima
+		filepath.Join("..", "..", "assets", "logo.png"), // Dois níveis acima
+		filepath.Join(currentDir, "assets", "logo.png"), // Diretório atual absoluto
 	}
-	
+
 	var logoSource string
 	for _, possiblePath := range possibleLogoPaths {
 		if _, err := os.Stat(possiblePath); err == nil {
@@ -323,17 +323,17 @@ func GenerateDesktopFrontend(projectName string, projectConfig *config.ProjectCo
 			break
 		}
 	}
-	
+
 	// Se encontrou o logo, copiar
 	if logoSource != "" {
 		sourceFile, err := os.Open(logoSource)
 		if err == nil {
 			defer sourceFile.Close()
-			
+
 			destFile, err := os.Create(logoDest)
 			if err == nil {
 				defer destFile.Close()
-				
+
 				_, err = io.Copy(destFile, sourceFile)
 				if err == nil {
 					fmt.Println("✓ Logo copiado para assets/")
@@ -383,7 +383,7 @@ func GenerateDesktopFrontend(projectName string, projectConfig *config.ProjectCo
 		iconGenieCmd := exec.Command("npx", "icongenie", "generate", "-i", absLogoPath, "-m", "electron")
 		iconGenieCmd.Stdout = os.Stdout
 		iconGenieCmd.Stderr = os.Stderr
-		
+
 		if err := iconGenieCmd.Run(); err != nil {
 			fmt.Println("⚠️  Aviso: Erro ao gerar ícones. Execute 'npm run generate:icons' manualmente.")
 			fmt.Println("   Certifique-se de que @quasar/icongenie está instalado.")

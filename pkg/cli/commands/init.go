@@ -9,7 +9,7 @@ import (
 
 	"github.com/Dalistor/gaver/pkg/config"
 	"github.com/Dalistor/gaver/pkg/generator/structure"
-	_ "github.com/glebarez/sqlite" // Driver SQLite puro Go (usa modernc.org/sqlite internamente)
+	_ "github.com/glebarez/sqlite"
 
 	"github.com/spf13/cobra"
 )
