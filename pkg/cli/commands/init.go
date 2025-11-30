@@ -1,12 +1,15 @@
 package commands
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/Dalistor/gaver/pkg/config"
 	"github.com/Dalistor/gaver/pkg/generator/structure"
+	_ "github.com/glebarez/sqlite" // Driver SQLite puro Go (usa modernc.org/sqlite internamente)
 
 	"github.com/spf13/cobra"
 )
@@ -74,6 +77,16 @@ func run_init(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("erro ao escrever configuração: %w", err)
 	}
 
+	// Se for SQLite, criar arquivo .db inicial
+	if database == "sqlite" {
+		if err := createInitialSQLiteDB(projectName); err != nil {
+			fmt.Printf("⚠️  Aviso: Erro ao criar banco SQLite inicial: %v\n", err)
+			fmt.Println("   O banco será criado automaticamente na primeira execução")
+		} else {
+			fmt.Println("✓ Banco SQLite inicial criado")
+		}
+	}
+
 	fmt.Println("✓ Arquivos iniciais gerados")
 
 	fmt.Printf("\n✓ Projeto '%s' inicializado com sucesso!\n\n", projectName)
@@ -135,5 +148,45 @@ func setupWebProject(projectName string, projectConfig *config.ProjectConfig) er
 		return fmt.Errorf("erro ao gerar frontend Web: %w", err)
 	}
 
+	return nil
+}
+
+// createInitialSQLiteDB cria o arquivo .db inicial para projetos SQLite
+func createInitialSQLiteDB(projectName string) error {
+	// Criar diretório data se não existir
+	dataDir := filepath.Join(projectName, "data")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return fmt.Errorf("erro ao criar diretório data: %w", err)
+	}
+
+	// Caminho do banco
+	dbPath := filepath.Join(dataDir, projectName+".db")
+
+	// Criar conexão SQLite (isso cria o arquivo se não existir)
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return fmt.Errorf("erro ao criar banco SQLite: %w", err)
+	}
+	defer db.Close()
+
+	// Testar conexão (isso garante que o arquivo foi criado)
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("erro ao testar banco SQLite: %w", err)
+	}
+
+	// Criar tabela de migrations inicial (se necessário)
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS migrations (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			migration VARCHAR(255) NOT NULL,
+			batch INTEGER NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("erro ao criar tabela migrations: %w", err)
+	}
+
+	fmt.Printf("📦 Banco SQLite criado: %s\n", dbPath)
 	return nil
 }

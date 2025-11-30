@@ -376,6 +376,27 @@ DB_PASSWORD=sua_senha
 DB_NAME={{.ProjectName}}
 ```
 
+{{if eq .DatabaseDriver "sqlite"}}
+### SQLite em Projetos Android/Desktop
+
+Este projeto usa **SQLite** com o driver **modernc.org/sqlite** (puro Go, sem CGO), garantindo:
+
+- ✅ **Sem dependências externas**: SQLite embutido no executável
+- ✅ **Funciona em Android**: Builds com `CGO_ENABLED=0` funcionam perfeitamente
+- ✅ **Armazenamento persistente**: Banco armazenado no diretório de dados do app
+
+**Localização do arquivo SQLite:**
+{{if or (eq .ProjectType "android") (eq .ProjectType "desktop")}}
+- **{{if eq .ProjectType "android"}}Android{{else}}Desktop (Electron){{end}}**: O banco é armazenado automaticamente em:
+  - Android: `getFilesDir()/data/{{.ProjectName}}.db`
+  - Desktop: `app.getPath('userData')/data/{{.ProjectName}}.db`
+  
+O caminho é configurado automaticamente via `APP_DATA_DIR` quando o app inicia.
+{{else}}
+- **Server/Web**: O banco é armazenado no diretório atual do projeto como `{{.ProjectName}}.db`
+{{end}}
+{{end}}
+
 ### Conexão
 
 A conexão é estabelecida automaticamente no `main.go`. Para usar em outros arquivos:

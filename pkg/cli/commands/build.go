@@ -93,7 +93,7 @@ func buildAndroid(projectConfig *config.ProjectConfig) error {
 		return fmt.Errorf("erro ao criar diretório assets: %w", err)
 	}
 
-	// Compilar para Android ARM64
+	// Compilar para Android ARM64 (sempre sem CGO para Android)
 	goBuildCmd := exec.Command("go", "build", "-o", serverBinaryPath, "-ldflags", "-s -w", "cmd/server/main.go")
 	goBuildCmd.Env = append(os.Environ(), "GOOS=android", "GOARCH=arm64", "CGO_ENABLED=0")
 	goBuildCmd.Stdout = os.Stdout
@@ -106,6 +106,42 @@ func buildAndroid(projectConfig *config.ProjectConfig) error {
 	} else {
 		fmt.Println("✓ Servidor Go compilado para Android")
 		serverCompiled = true
+	}
+
+	// Se usar SQLite, copiar banco de dados para assets (se existir)
+	if projectConfig.Database == "sqlite" {
+		dbName := projectConfig.ProjectName
+		if dbName == "" {
+			dbName = "app"
+		}
+		dbFile := dbName + ".db"
+
+		// Procurar arquivo .db no diretório atual ou em subdiretórios comuns
+		var dbPath string
+		possiblePaths := []string{
+			dbFile,
+			filepath.Join("data", dbFile),
+			filepath.Join("database", dbFile),
+		}
+
+		for _, path := range possiblePaths {
+			if _, err := os.Stat(path); err == nil {
+				dbPath = path
+				break
+			}
+		}
+
+		if dbPath != "" {
+			fmt.Printf("📦 Copiando banco SQLite embutido: %s\n", dbPath)
+			dbDest := filepath.Join(androidPath, "app", "src", "main", "assets", "database.db")
+			if err := copyFile(dbPath, dbDest); err != nil {
+				fmt.Printf("⚠️  Aviso: Erro ao copiar banco SQLite: %v\n", err)
+			} else {
+				fmt.Println("✓ Banco SQLite copiado para assets")
+			}
+		} else {
+			fmt.Println("ℹ️  Nenhum banco SQLite encontrado - será criado em tempo de execução")
+		}
 	}
 
 	// 2. Gerar AAR do Go usando gomobile (opcional, para funções Go)
@@ -214,7 +250,13 @@ func buildDesktop(projectConfig *config.ProjectConfig) error {
 
 	// 1. Build do servidor Go
 	fmt.Println("📦 Compilando servidor Go...")
+
+	// Configurar CGO baseado no banco de dados
 	goBuildCmd := exec.Command("go", "build", "-o", "server", "cmd/server/main.go")
+	if projectConfig.Database == "sqlite" {
+		// Para SQLite, desabilitar CGO para usar modernc.org/sqlite (puro Go)
+		goBuildCmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	}
 	goBuildCmd.Stdout = os.Stdout
 	goBuildCmd.Stderr = os.Stderr
 
@@ -236,6 +278,42 @@ func buildDesktop(projectConfig *config.ProjectConfig) error {
 
 	if err := copyFile("server", serverDest); err != nil {
 		return fmt.Errorf("erro ao copiar binário para Electron: %w", err)
+	}
+
+	// Se usar SQLite, copiar banco de dados para src-electron (se existir)
+	if projectConfig.Database == "sqlite" {
+		dbName := projectConfig.ProjectName
+		if dbName == "" {
+			dbName = "app"
+		}
+		dbFile := dbName + ".db"
+
+		// Procurar arquivo .db no diretório atual ou em subdiretórios comuns
+		var dbPath string
+		possiblePaths := []string{
+			dbFile,
+			filepath.Join("data", dbFile),
+			filepath.Join("database", dbFile),
+		}
+
+		for _, path := range possiblePaths {
+			if _, err := os.Stat(path); err == nil {
+				dbPath = path
+				break
+			}
+		}
+
+		if dbPath != "" {
+			fmt.Printf("📦 Copiando banco SQLite embutido: %s\n", dbPath)
+			dbDest := filepath.Join(electronPath, "database.db")
+			if err := copyFile(dbPath, dbDest); err != nil {
+				fmt.Printf("⚠️  Aviso: Erro ao copiar banco SQLite: %v\n", err)
+			} else {
+				fmt.Println("✓ Banco SQLite copiado para Electron")
+			}
+		} else {
+			fmt.Println("ℹ️  Nenhum banco SQLite encontrado - será criado em tempo de execução")
+		}
 	}
 
 	// 3. Build do Quasar Electron
@@ -608,7 +686,10 @@ func generateMainActivity(androidPath string, projectConfig *config.ProjectConfi
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, map[string]string{"PackageName": packageName}); err != nil {
+	if err := tmpl.Execute(&buf, map[string]string{
+		"PackageName": packageName,
+		"ProjectName": projectConfig.ProjectName,
+	}); err != nil {
 		return fmt.Errorf("erro ao executar template: %w", err)
 	}
 	content := buf.String()

@@ -109,7 +109,7 @@ func getDatabaseDriverImport(db string) string {
 	imports := map[string]string{
 		"postgres": "gorm.io/driver/postgres",
 		"mysql":    "gorm.io/driver/mysql",
-		"sqlite":   "gorm.io/driver/sqlite",
+		"sqlite":   "github.com/glebarez/sqlite", // Driver SQLite puro Go, não requer CGO
 	}
 	return imports[driver]
 }
@@ -279,7 +279,6 @@ func GenerateDesktopFrontend(projectName string, projectConfig *config.ProjectCo
 		"package_json_desktop.tmpl":     "frontend/package.json",
 		"frontend_env.tmpl":             "frontend/.env",
 		"electron_main.tmpl":            "frontend/src-electron/electron-main.js",
-		"electron_preload.tmpl":         "frontend/src-electron/electron-preload.js",
 		"composable_api.tmpl":           "frontend/src/composables/useApi.ts",
 		"api_client.tmpl":               "frontend/src/api/client.js",
 		"router_config.tmpl":            "frontend/src/router/index.js",

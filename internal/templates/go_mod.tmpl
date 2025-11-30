@@ -7,6 +7,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	gorm.io/gorm v1.25.12
+{{if eq .DatabaseDriver "sqlite"}}
+	github.com/glebarez/sqlite v1.11.0
+{{else}}
 	{{.DatabaseDriverImport}} v1.5.4
+{{end}}
 )
 

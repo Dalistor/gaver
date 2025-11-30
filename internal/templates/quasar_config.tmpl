@@ -113,8 +113,7 @@ module.exports = function (ctx) {
       // registerServiceWorker: 'src-pwa/register-service-worker',
       // serviceWorker: 'src-pwa/service-worker',
       // pwaManifestFile: 'src-pwa/manifest.json',
-      electronMain: 'src-electron/electron-main.js',
-      electronPreload: 'src-electron/electron-preload.js'
+      electronMain: 'src-electron/electron-main.js'
     },
 
     // https://quasar.dev/quasar-cli-vite/developing-ssr/configuring-ssr
@@ -166,6 +165,9 @@ module.exports = function (ctx) {
     electron: {
       // extendElectronMainConf (esbuildConf)
       // extendElectronPreloadConf (esbuildConf)
+
+      // Desabilitar preload scripts (não estamos usando)
+      preloadScripts: [],
 
       // specify the debugging port to use for the Electron app when running in development mode
       inspectPort: 5858,

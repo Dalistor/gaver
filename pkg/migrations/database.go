@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/glebarez/sqlite" // Driver SQLite puro Go, não requer CGO
 	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -37,7 +37,7 @@ func ConnectDB() (*gorm.DB, error) {
 	case "postgres":
 		dialector = postgres.Open(dsn)
 	case "sqlite":
-		dialector = sqlite.Open(dsn)
+		dialector = sqlite.Dialector{DSN: dsn} // Usa Dialector para glebarez/sqlite
 	default:
 		return nil, fmt.Errorf("driver não suportado: %s", driver)
 	}

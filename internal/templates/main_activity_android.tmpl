@@ -32,8 +32,31 @@ public class MainActivity extends BridgeActivity {
             // Caminho do binário do servidor Go no assets
             String serverBinary = "server";
             
-            // Copiar binário do assets para o diretório de dados do app
+            // Obter diretório de dados do app (onde o SQLite será armazenado)
             File dataDir = getApplicationContext().getFilesDir();
+            String appDataDir = dataDir.getAbsolutePath();
+            
+            // Criar subdiretório 'data' para o banco SQLite
+            File dbDir = new File(dataDir, "data");
+            if (!dbDir.exists()) {
+                dbDir.mkdirs();
+            }
+            
+            // Verificar se existe banco embutido nos assets e copiar para diretório de dados
+            File embeddedDB = new File(dbDir, "database.db");
+            File finalDB = new File(dbDir, "{{.ProjectName}}.db");
+            if (!finalDB.exists() && assetExists("database.db")) {
+                try {
+                    copyAssetToFile("database.db", embeddedDB);
+                    // Renomear para o nome correto do banco
+                    embeddedDB.renameTo(finalDB);
+                    Log.i(TAG, "Banco SQLite embutido copiado dos assets");
+                } catch (IOException e) {
+                    Log.e(TAG, "Erro ao copiar banco SQLite embutido", e);
+                }
+            }
+            
+            // Copiar binário do assets para o diretório de dados do app
             File serverFile = new File(dataDir, serverBinary);
             
             if (!serverFile.exists()) {
@@ -43,14 +66,18 @@ public class MainActivity extends BridgeActivity {
                 serverFile.setExecutable(true);
             }
 
-            // Iniciar o servidor
+            // Iniciar o servidor com APP_DATA_DIR configurado
             ProcessBuilder pb = new ProcessBuilder(serverFile.getAbsolutePath());
             pb.directory(dataDir);
             pb.redirectErrorStream(true);
             
+            // Configurar APP_DATA_DIR para o SQLite usar o diretório correto
+            pb.environment().put("APP_DATA_DIR", dbDir.getAbsolutePath());
+            
             serverProcess = pb.start();
             
             Log.i(TAG, "Servidor Go iniciado com sucesso");
+            Log.i(TAG, "APP_DATA_DIR configurado: " + dbDir.getAbsolutePath());
             
         } catch (Exception e) {
             Log.e(TAG, "Erro ao iniciar servidor Go: " + e.getMessage(), e);
@@ -69,6 +96,16 @@ public class MainActivity extends BridgeActivity {
         
         fos.close();
         is.close();
+    }
+    
+    private boolean assetExists(String assetName) {
+        try {
+            InputStream is = getAssets().open(assetName);
+            is.close();
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     @Override

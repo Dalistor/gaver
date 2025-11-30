@@ -11,9 +11,45 @@ const fs = require('fs')
 let mainWindow
 let serverProcess = null
 
-// Iniciar servidor Go
+// Detectar modo dev vs produção
+// No modo dev, o servidor Go já está rodando via 'gaver serve'
+// No modo produção, precisamos iniciar o servidor embutido
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+
+// Iniciar servidor Go (apenas em produção)
 function startGoServer() {
+  // No modo dev, o servidor já está rodando, não iniciar
+  if (isDev) {
+    console.log('Modo dev: servidor Go já está rodando via gaver serve')
+    return
+  }
+
   try {
+    // Obter diretório de dados do app para SQLite
+    const userDataPath = app.getPath('userData')
+    const appDataDir = path.join(userDataPath, 'data')
+    
+    // Criar diretório se não existir
+    if (!fs.existsSync(appDataDir)) {
+      fs.mkdirSync(appDataDir, { recursive: true })
+    }
+    
+    // Verificar se existe banco embutido e copiar para diretório de dados
+    // O banco embutido estará no mesmo diretório do executável (src-electron após build)
+    const embeddedDBPath = path.join(__dirname, 'database.db')
+    // Usar nome do projeto ou 'app' como padrão
+    const dbName = '{{.ProjectName}}' || 'app'
+    const finalDBPath = path.join(appDataDir, dbName + '.db')
+    
+    if (fs.existsSync(embeddedDBPath) && !fs.existsSync(finalDBPath)) {
+      try {
+        fs.copyFileSync(embeddedDBPath, finalDBPath)
+        console.log('✓ Banco SQLite embutido copiado para:', finalDBPath)
+      } catch (err) {
+        console.error('Erro ao copiar banco SQLite embutido:', err)
+      }
+    }
+    
     // Caminho do binário do servidor (no diretório src-electron após build)
     const serverPath = path.join(__dirname, 'server')
     const serverPathExe = path.join(__dirname, 'server.exe')
@@ -40,11 +76,15 @@ function startGoServer() {
       fs.chmodSync(executablePath, '755')
     }
 
-    // Iniciar o servidor
+    // Iniciar o servidor com APP_DATA_DIR configurado
     serverProcess = spawn(executablePath, [], {
       cwd: path.dirname(executablePath),
       stdio: 'inherit',
-      detached: false
+      detached: false,
+      env: {
+        ...process.env,
+        APP_DATA_DIR: appDataDir
+      }
     })
 
     serverProcess.on('error', (err) => {
@@ -57,6 +97,7 @@ function startGoServer() {
     })
 
     console.log('Servidor Go iniciado com sucesso')
+    console.log('APP_DATA_DIR configurado:', appDataDir)
   } catch (error) {
     console.error('Erro ao iniciar servidor Go:', error)
   }
@@ -89,9 +130,7 @@ function createWindow () {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
-      contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
-      // More info: /quasar-cli/developing-electron-apps/electron-preload-script
-      preload: path.join(__dirname, 'electron-preload.js')
+      contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION
     }
   })
 
@@ -105,7 +144,46 @@ function createWindow () {
     })
   }
 
-  mainWindow.loadURL(process.env.APP_URL)
+  // Configurar URL baseado no modo (dev ou produção)
+  // O Quasar automaticamente define process.env.APP_URL:
+  // - No dev: aponta para o Quasar dev server (ex: http://localhost:9000)
+  // - No build: aponta para os arquivos estáticos (file://...)
+  // O Quasar dev server faz proxy das requisições /api para o servidor Go
+  let appUrl = process.env.APP_URL
+  
+  if (!appUrl) {
+    // Fallback caso APP_URL não esteja definido
+    if (isDev) {
+      // No dev, tentar porta padrão do Quasar dev server
+      // O Quasar geralmente usa a porta 9000 para Electron no dev
+      appUrl = 'http://localhost:9000'
+      console.warn('APP_URL não definido, usando fallback para dev:', appUrl)
+    } else {
+      // No build, usar arquivos estáticos
+      const distPath = path.join(__dirname, '../dist/index.html')
+      appUrl = `file://${distPath}`
+      console.warn('APP_URL não definido, usando fallback para build:', appUrl)
+    }
+  }
+  
+  if (isDev) {
+    console.log('Modo dev: carregando frontend do Quasar dev server')
+    console.log('O Quasar dev server faz proxy de /api para o servidor Go em http://localhost:' + (process.env.VITE_SERVER_PORT || '8080'))
+  } else {
+    console.log('Modo produção: carregando arquivos estáticos')
+  }
+
+  console.log('Carregando URL:', appUrl)
+  
+  // No dev, aguardar um pouco para garantir que o Quasar dev server está pronto
+  if (isDev) {
+    // Usar setTimeout para dar tempo do Quasar dev server iniciar
+    setTimeout(() => {
+      mainWindow.loadURL(appUrl)
+    }, 1000)
+  } else {
+    mainWindow.loadURL(appUrl)
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null

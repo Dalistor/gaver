@@ -2,11 +2,17 @@ package database
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"{{.ProjectName}}/config/env"
 
+{{if eq .DatabaseDriver "sqlite"}}
+	"github.com/glebarez/sqlite" // Driver SQLite puro Go, não requer CGO
+{{else}}
 	"gorm.io/driver/{{.DatabaseDriver}}"
+{{end}}
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -46,9 +52,30 @@ func Connect() (*gorm.DB, error) {
 
 	dsn := buildDSN(config)
 
+	{{if eq .DatabaseDriver "sqlite"}}
+	// Para SQLite, garantir que o diretório existe
+	// Nota: Para Android, o banco embutido é copiado pelo MainActivity dos assets
+	// Para Electron, o banco embutido é copiado pelo electron-main.js
+	// O código Go apenas usa o banco no diretório de dados configurado
+	dbPath := dsn
+	dbDir := filepath.Dir(dbPath)
+	if dbDir != "." && dbDir != "" {
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
+			return nil, fmt.Errorf("erro ao criar diretório do banco: %w", err)
+		}
+	}
+	// O arquivo será criado automaticamente pelo SQLite se não existir
+	{{end}}
+
+	{{if eq .DatabaseDriver "sqlite"}}
+	db, err := gorm.Open(sqlite.Dialector{DSN: dsn}, &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
+	{{else}}
 	db, err := gorm.Open({{.DatabaseDriver}}.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
+	{{end}}
 
 	if err != nil {
 		return nil, fmt.Errorf("falha ao conectar ao banco: %w", err)
@@ -69,6 +96,18 @@ func Connect() (*gorm.DB, error) {
 	return db, nil
 }
 
+// getDatabasePath retorna o caminho correto do banco baseado na plataforma
+// Para Android/Desktop, usa APP_DATA_DIR se disponível (diretório de dados do app)
+// Para Server/Web, usa diretório atual ou configurável via env
+func getDatabasePath(dbname string) string {
+	// Para Android/Desktop, usar diretório de dados do app se configurado
+	if appDataDir := os.Getenv("APP_DATA_DIR"); appDataDir != "" {
+		return filepath.Join(appDataDir, dbname+".db")
+	}
+	// Para Server/Web, usar diretório atual
+	return dbname + ".db"
+}
+
 // buildDSN constrói a string de conexão
 func buildDSN(config Config) string {
 	{{if eq .DatabaseDriver "postgres"}}
@@ -82,7 +121,7 @@ func buildDSN(config Config) string {
 		config.User, config.Password, config.Host, config.Port, config.DBName,
 	)
 	{{else if eq .DatabaseDriver "sqlite"}}
-	return config.DBName + ".db"
+	return getDatabasePath(config.DBName)
 	{{end}}
 }
 

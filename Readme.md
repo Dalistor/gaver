@@ -323,6 +323,21 @@ meu-projeto/
 - PostgreSQL  
 - SQLite
 
+### SQLite em Projetos Android e Desktop
+
+O SQLite é totalmente suportado em projetos Android e Desktop, utilizando o driver **modernc.org/sqlite** (puro Go, sem CGO). Isso significa:
+
+- ✅ **Sem dependências externas**: O SQLite é embutido no executável
+- ✅ **Funciona com CGO desabilitado**: Builds Android funcionam perfeitamente
+- ✅ **Armazenamento persistente**: O banco é armazenado no diretório de dados do app
+
+**Localização do arquivo SQLite:**
+- **Android**: `getFilesDir()/data/<nome-do-banco>.db` (diretório de dados do app)
+- **Desktop (Electron)**: `app.getPath('userData')/data/<nome-do-banco>.db` (diretório de dados do usuário)
+- **Server/Web**: Diretório atual do projeto ou configurável via `APP_DATA_DIR`
+
+O caminho é configurado automaticamente via variável de ambiente `APP_DATA_DIR` quando o app inicia.
+
 ## Tipos de Projeto
 
 O Gaver suporta três tipos de projetos:
