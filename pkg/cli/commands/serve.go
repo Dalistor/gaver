@@ -20,11 +20,12 @@ func NewServeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Inicia o servidor de desenvolvimento",
-		Long:  "Executa o servidor da aplicação em modo de desenvolvimento. Para projetos Android/Desktop, também inicia o Quasar dev server.",
+		Long:  "Executa o servidor da aplicação em modo de desenvolvimento. Para projetos Mobile/Desktop, também inicia o Quasar dev server.",
 		RunE:  runServe,
 	}
 
-	cmd.Flags().Bool("android", false, "Abre Android Studio para debug (apenas para projetos Android)")
+	cmd.Flags().Bool("studio", false, "Abre Android Studio ou Xcode para debug (apenas para projetos Mobile)")
+	cmd.Flags().String("platform", "", "Plataforma específica para Mobile (android ou ios)")
 	cmd.Flags().Bool("cgo", false, "Habilita CGO para SQLite (requer compilador C). Se desabilitado, usa modernc.org/sqlite (puro Go)")
 
 	return cmd
@@ -49,9 +50,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// Executar baseado no tipo de projeto
 	switch projectConfig.Type {
-	case config.ProjectTypeAndroid:
-		openAndroidStudio, _ := cmd.Flags().GetBool("android")
-		return runAndroid(projectConfig, openAndroidStudio, enableCGO)
+	case config.ProjectTypeMobile:
+		openStudio, _ := cmd.Flags().GetBool("studio")
+		platform, _ := cmd.Flags().GetString("platform")
+		return runMobile(projectConfig, openStudio, platform, enableCGO)
 	case config.ProjectTypeDesktop:
 		return runDesktop(projectConfig, enableCGO)
 	case config.ProjectTypeWeb:
@@ -302,9 +304,17 @@ func waitForServer(port string, maxAttempts int) error {
 	return fmt.Errorf("servidor não respondeu após %d tentativas", maxAttempts)
 }
 
-func runAndroid(projectConfig *config.ProjectConfig, openAndroidStudio bool, enableCGO bool) error {
+func runMobile(projectConfig *config.ProjectConfig, openStudio bool, platform string, enableCGO bool) error {
 	fmt.Println("🚀 Iniciando servidor Go e Quasar dev server...")
 	fmt.Println("Use Ctrl+C para parar os servidores")
+
+	// Determinar plataforma (android ou ios)
+	if platform == "" {
+		platform = "android" // Padrão
+	}
+	if platform != "android" && platform != "ios" {
+		return fmt.Errorf("plataforma inválida: %s. Use 'android' ou 'ios'", platform)
+	}
 
 	// Verificar e configurar SQLite
 	projectConfig, err := config.ReadProjectConfig()
@@ -378,7 +388,7 @@ func runAndroid(projectConfig *config.ProjectConfig, openAndroidStudio bool, ena
 	fmt.Println("✓ Servidor Go está pronto")
 
 	// Iniciar Quasar dev server
-	quasarCmd := exec.Command("npx", "quasar", "dev", "-m", "capacitor", "-T", "android")
+	quasarCmd := exec.Command("npx", "quasar", "dev", "-m", "capacitor", "-T", platform)
 	quasarCmd.Dir = frontendPath
 	quasarCmd.Stdout = os.Stdout
 	quasarCmd.Stderr = os.Stderr
@@ -388,13 +398,27 @@ func runAndroid(projectConfig *config.ProjectConfig, openAndroidStudio bool, ena
 		return fmt.Errorf("erro ao iniciar Quasar dev server: %w", err)
 	}
 
-	// Se flag -android, abrir Android Studio
-	if openAndroidStudio {
-		androidPath := filepath.Join(frontendPath, "android")
-		if _, err := os.Stat(androidPath); err == nil {
-			fmt.Println("📱 Abrindo Android Studio...")
-			studioCmd := exec.Command("studio", androidPath)
-			studioCmd.Start() // Não esperar, apenas iniciar
+	// Se flag --studio, abrir Android Studio ou Xcode
+	if openStudio {
+		if platform == "android" {
+			androidPath := filepath.Join(frontendPath, "android")
+			if _, err := os.Stat(androidPath); err == nil {
+				fmt.Println("📱 Abrindo Android Studio...")
+				studioCmd := exec.Command("studio", androidPath)
+				studioCmd.Start() // Não esperar, apenas iniciar
+			}
+		} else if platform == "ios" {
+			iosPath := filepath.Join(frontendPath, "ios")
+			if _, err := os.Stat(iosPath); err == nil {
+				fmt.Println("🍎 Abrindo Xcode...")
+				// No macOS, usar 'open' para abrir Xcode
+				if runtime.GOOS == "darwin" {
+					studioCmd := exec.Command("open", "-a", "Xcode", iosPath)
+					studioCmd.Start()
+				} else {
+					fmt.Println("⚠️  Xcode só está disponível no macOS")
+				}
+			}
 		}
 	}
 

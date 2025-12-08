@@ -1,5 +1,5 @@
 # Test binaries
-*.test
+tests
 *.out
 
 # Go workspace file

@@ -5,13 +5,19 @@ const config: CapacitorConfig = {
   appName: '{{.ProjectName}}',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    iosScheme: 'https'
   },
   plugins: {
     Filesystem: {
       android: {
         path: 'files'
+      },
+      ios: {
+        path: 'files'
       }
     }
   }
 };
+
+export default config;

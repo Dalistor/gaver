@@ -12,7 +12,7 @@ type ProjectType string
 
 const (
 	ProjectTypeServer  ProjectType = "server"
-	ProjectTypeAndroid ProjectType = "android"
+	ProjectTypeMobile  ProjectType = "mobile"
 	ProjectTypeDesktop ProjectType = "desktop"
 	ProjectTypeWeb     ProjectType = "web"
 )
@@ -62,7 +62,9 @@ func WriteProjectConfig(config *ProjectConfig, projectPath string) error {
 // IsValidProjectType verifica se o tipo de projeto é válido
 func IsValidProjectType(projectType string) bool {
 	switch ProjectType(projectType) {
-	case ProjectTypeServer, ProjectTypeAndroid, ProjectTypeDesktop, ProjectTypeWeb:
+	case ProjectTypeServer, ProjectTypeMobile, ProjectTypeDesktop, ProjectTypeWeb:
+		return true
+	case "android": // Compatibilidade com projetos antigos
 		return true
 	default:
 		return false

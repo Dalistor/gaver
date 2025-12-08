@@ -34,7 +34,7 @@ go run cmd/server/main.go
 # ou
 gaver serve
 
-# Para projetos Android/Desktop
+# Para projetos Mobile/Desktop
 gaver serve
 # (inicia servidor Go + Quasar dev simultaneamente)
 ```
@@ -61,7 +61,7 @@ gaver serve
 │       └── repositories/ # Dados
 └── migrations/         # Migrations SQL
 ```
-{{else if eq .ProjectType "android"}}
+{{else if eq .ProjectType "mobile"}}
 ```
 {{.ProjectName}}/
 ├── GaverProject.json    # Configuração do projeto
@@ -80,7 +80,8 @@ gaver serve
 │   ├── quasar.config.js # Configuração Quasar (proxy para servidor Go)
 │   ├── capacitor.config.js
 │   └── package.json
-├── android/             # Projeto Android nativo
+├── android/             # Projeto Android nativo (Capacitor)
+├── ios/                  # Projeto iOS nativo (Capacitor)
 ├── config/              # Configurações backend
 ├── modules/             # Módulos backend
 └── migrations/          # SQL migrations
@@ -185,12 +186,14 @@ const fetchUsers = async () => {
 </script>
 ```
 
-{{if eq .ProjectType "android"}}
-### Android
+{{if eq .ProjectType "mobile"}}
+### Mobile (Android + iOS)
 
-- **Capacitor**: Configurado para desenvolvimento Android
+- **Capacitor**: Configurado para desenvolvimento Android e iOS
 - **Filesystem**: Suporte a armazenamento local via filesystem
-- **Build**: Execute `gaver build` para gerar APK
+- **Android Build**: Execute `gaver build --platform android` para gerar APK
+- **iOS Build**: Execute `gaver build --platform ios` para gerar projeto iOS (requer macOS)
+- **Release Android**: Execute `gaver build --platform android --release` para gerar APK assinado
 {{else if eq .ProjectType "desktop"}}
 ### Desktop
 
@@ -267,9 +270,10 @@ Para desabilitar o sistema de rotinas, comente as linhas no `main.go`:
 # Rodar servidor
 gaver serve
 
-# Para projetos Android/Desktop, também inicia o Quasar dev server
-# Para Android, use --android para abrir Android Studio
-gaver serve --android
+# Para projetos Mobile/Desktop, também inicia o Quasar dev server
+# Para Mobile, use --studio para abrir Android Studio ou Xcode
+# Use --platform android ou --platform ios para escolher a plataforma
+gaver serve --studio --platform android
 ```
 
 ### Build
@@ -278,7 +282,10 @@ gaver serve --android
 # Compilar projeto
 gaver build
 
-# Android: gera APK em frontend/dist e frontend/android/app/build/outputs/apk/
+# Mobile Android: gera APK em frontend/android/app/build/outputs/apk/
+# Mobile iOS: gera projeto Xcode em frontend/ios/App/
+# Use --platform android ou --platform ios para escolher
+# Use --release para gerar APK assinado (Android)
 # Desktop: gera .exe em frontend/dist/electron/
 # Server: gera bin/server
 ```
@@ -377,18 +384,19 @@ DB_NAME={{.ProjectName}}
 ```
 
 {{if eq .DatabaseDriver "sqlite"}}
-### SQLite em Projetos Android/Desktop
+### SQLite em Projetos Mobile/Desktop
 
 Este projeto usa **SQLite** com o driver **modernc.org/sqlite** (puro Go, sem CGO), garantindo:
 
 - ✅ **Sem dependências externas**: SQLite embutido no executável
-- ✅ **Funciona em Android**: Builds com `CGO_ENABLED=0` funcionam perfeitamente
+- ✅ **Funciona em Mobile**: Builds com `CGO_ENABLED=0` funcionam perfeitamente em Android e iOS
 - ✅ **Armazenamento persistente**: Banco armazenado no diretório de dados do app
 
 **Localização do arquivo SQLite:**
-{{if or (eq .ProjectType "android") (eq .ProjectType "desktop")}}
-- **{{if eq .ProjectType "android"}}Android{{else}}Desktop (Electron){{end}}**: O banco é armazenado automaticamente em:
+{{if or (eq .ProjectType "mobile") (eq .ProjectType "desktop")}}
+- **{{if eq .ProjectType "mobile"}}Mobile{{else}}Desktop (Electron){{end}}**: O banco é armazenado automaticamente em:
   - Android: `getFilesDir()/data/{{.ProjectName}}.db`
+  - iOS: `Documents/data/{{.ProjectName}}.db`
   - Desktop: `app.getPath('userData')/data/{{.ProjectName}}.db`
   
 O caminho é configurado automaticamente via `APP_DATA_DIR` quando o app inicia.

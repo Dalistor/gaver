@@ -20,9 +20,12 @@ func NewBuildCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "build",
 		Short: "Compila o projeto para produção",
-		Long:  "Gera os arquivos de build do projeto. Para Android gera APK, para Desktop gera .exe, para Server faz build Go normal.",
+		Long:  "Gera os arquivos de build do projeto. Para Mobile gera APK (Android) ou IPA (iOS), para Desktop gera .exe, para Server faz build Go normal.",
 		RunE:  runBuild,
 	}
+
+	cmd.Flags().String("platform", "", "Plataforma específica para Mobile (android ou ios). Se não especificado, compila ambas.")
+	cmd.Flags().Bool("release", false, "Gera build de release assinado (apenas Android)")
 
 	return cmd
 }
@@ -40,10 +43,24 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		return buildServer()
 	}
 
+	// Obter flags
+	platform, _ := cmd.Flags().GetString("platform")
+	release, _ := cmd.Flags().GetBool("release")
+
 	// Executar build baseado no tipo de projeto
 	switch projectConfig.Type {
-	case config.ProjectTypeAndroid:
-		return buildAndroid(projectConfig)
+	case config.ProjectTypeMobile:
+		if platform == "" || platform == "android" {
+			if err := buildMobile(projectConfig, "android", release); err != nil {
+				return err
+			}
+		}
+		if platform == "" || platform == "ios" {
+			if err := buildIOS(projectConfig); err != nil {
+				return err
+			}
+		}
+		return nil
 	case config.ProjectTypeDesktop:
 		return buildDesktop(projectConfig)
 	case config.ProjectTypeWeb:
@@ -71,7 +88,11 @@ func buildServer() error {
 	return nil
 }
 
-func buildAndroid(projectConfig *config.ProjectConfig) error {
+func buildMobile(projectConfig *config.ProjectConfig, platform string, release bool) error {
+	if platform != "android" {
+		return fmt.Errorf("plataforma não suportada: %s", platform)
+	}
+
 	fmt.Println("🔨 Compilando projeto Android...")
 
 	// Verificar se frontend existe
@@ -202,7 +223,16 @@ func buildAndroid(projectConfig *config.ProjectConfig) error {
 		}
 	}
 
-	// 4. Build do Android (gerar APK)
+	// 4. Gerar/Verificar keystore para release (se necessário)
+	if release {
+		if err := generateAndroidKeystore(androidPath, projectConfig); err != nil {
+			fmt.Printf("⚠️  Aviso: Erro ao gerar/configurar keystore: %v\n", err)
+			fmt.Println("   Continuando com build debug...")
+			release = false
+		}
+	}
+
+	// 5. Build do Android (gerar APK)
 	fmt.Println("📱 Compilando projeto Android...")
 
 	// Verificar se gradlew existe
@@ -215,7 +245,13 @@ func buildAndroid(projectConfig *config.ProjectConfig) error {
 		return fmt.Errorf("gradlew não encontrado. Execute 'quasar capacitor sync android' primeiro")
 	}
 
-	gradleCmd := exec.Command(gradlewPath, "assembleDebug")
+	// Escolher tipo de build
+	buildType := "assembleDebug"
+	if release {
+		buildType = "assembleRelease"
+	}
+
+	gradleCmd := exec.Command(gradlewPath, buildType)
 	gradleCmd.Dir = androidPath
 	gradleCmd.Stdout = os.Stdout
 	gradleCmd.Stderr = os.Stderr
@@ -224,13 +260,127 @@ func buildAndroid(projectConfig *config.ProjectConfig) error {
 		return fmt.Errorf("erro ao compilar Android: %w", err)
 	}
 
-	apkPath := filepath.Join(androidPath, "app", "build", "outputs", "apk", "debug", "app-debug.apk")
+	// Caminho do APK gerado
+	apkType := "debug"
+	if release {
+		apkType = "release"
+	}
+	apkPath := filepath.Join(androidPath, "app", "build", "outputs", "apk", apkType, fmt.Sprintf("app-%s.apk", apkType))
 
 	fmt.Printf("✓ Build concluído!\n")
 	fmt.Printf("📱 APK: %s\n", apkPath)
 	if _, err := os.Stat(filepath.Join(libsPath, "gaver.aar")); err == nil {
 		fmt.Printf("📦 AAR incluído: %s\n", filepath.Join(libsPath, "gaver.aar"))
 	}
+
+	return nil
+}
+
+func buildIOS(projectConfig *config.ProjectConfig) error {
+	fmt.Println("🔨 Compilando projeto iOS...")
+
+	// Verificar se frontend existe
+	frontendPath := projectConfig.FrontendDir
+	if frontendPath == "" {
+		frontendPath = "frontend"
+	}
+
+	if _, err := os.Stat(frontendPath); os.IsNotExist(err) {
+		return fmt.Errorf("diretório frontend não encontrado")
+	}
+
+	iosPath := filepath.Join(frontendPath, "ios")
+
+	// Verificar se estamos no macOS
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("build iOS requer macOS e Xcode instalado")
+	}
+
+	// 1. Compilar servidor Go para iOS (binário ARM64)
+	fmt.Println("🍎 Compilando servidor Go para iOS...")
+	serverBinaryPath := filepath.Join(iosPath, "App", "server")
+	if err := os.MkdirAll(filepath.Dir(serverBinaryPath), 0755); err != nil {
+		return fmt.Errorf("erro ao criar diretório: %w", err)
+	}
+
+	// Compilar para iOS ARM64 (sempre sem CGO para iOS)
+	goBuildCmd := exec.Command("go", "build", "-o", serverBinaryPath, "-ldflags", "-s -w", "cmd/server/main.go")
+	goBuildCmd.Env = append(os.Environ(), "GOOS=ios", "GOARCH=arm64", "CGO_ENABLED=0")
+	goBuildCmd.Stdout = os.Stdout
+	goBuildCmd.Stderr = os.Stderr
+
+	if err := goBuildCmd.Run(); err != nil {
+		fmt.Println("⚠️  Aviso: Erro ao compilar servidor Go para iOS. Continuando sem servidor...")
+	} else {
+		fmt.Println("✓ Servidor Go compilado para iOS")
+	}
+
+	// Se usar SQLite, copiar banco de dados (se existir)
+	if projectConfig.Database == "sqlite" {
+		dbName := projectConfig.ProjectName
+		if dbName == "" {
+			dbName = "app"
+		}
+		dbFile := dbName + ".db"
+
+		// Procurar arquivo .db no diretório atual ou em subdiretórios comuns
+		var dbPath string
+		possiblePaths := []string{
+			dbFile,
+			filepath.Join("data", dbFile),
+			filepath.Join("database", dbFile),
+		}
+
+		for _, path := range possiblePaths {
+			if _, err := os.Stat(path); err == nil {
+				dbPath = path
+				break
+			}
+		}
+
+		if dbPath != "" {
+			fmt.Printf("📦 Copiando banco SQLite embutido: %s\n", dbPath)
+			dbDest := filepath.Join(iosPath, "App", "database.db")
+			if err := copyFile(dbPath, dbDest); err != nil {
+				fmt.Printf("⚠️  Aviso: Erro ao copiar banco SQLite: %v\n", err)
+			} else {
+				fmt.Println("✓ Banco SQLite copiado")
+			}
+		} else {
+			fmt.Println("ℹ️  Nenhum banco SQLite encontrado - será criado em tempo de execução")
+		}
+	}
+
+	// 2. Build do Quasar/Capacitor
+	fmt.Println("📦 Compilando Quasar com Capacitor...")
+	quasarBuildCmd := exec.Command("quasar", "build", "-m", "capacitor", "-T", "ios")
+	quasarBuildCmd.Dir = frontendPath
+	quasarBuildCmd.Stdout = os.Stdout
+	quasarBuildCmd.Stderr = os.Stderr
+
+	if err := quasarBuildCmd.Run(); err != nil {
+		return fmt.Errorf("erro ao compilar Quasar: %w", err)
+	}
+
+	// 3. Sincronizar com Capacitor
+	fmt.Println("🔄 Sincronizando com Capacitor...")
+	capacitorSyncCmd := exec.Command("npx", "cap", "sync", "ios")
+	capacitorSyncCmd.Dir = frontendPath
+	capacitorSyncCmd.Stdout = os.Stdout
+	capacitorSyncCmd.Stderr = os.Stderr
+
+	if err := capacitorSyncCmd.Run(); err != nil {
+		fmt.Printf("⚠️  Aviso: Erro ao sincronizar Capacitor: %v\n", err)
+	}
+
+	// 4. Build do iOS usando Xcode (requer Xcode)
+	fmt.Println("🍎 Para compilar o app iOS, abra o projeto no Xcode:")
+	fmt.Printf("   open %s/App/App.xcworkspace\n", iosPath)
+	fmt.Println("\nOu use o comando:")
+	fmt.Printf("   cd %s/App && xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -archivePath App.xcarchive archive\n", iosPath)
+
+	fmt.Printf("\n✓ Build concluído!\n")
+	fmt.Printf("📱 Projeto iOS: %s\n", iosPath)
 
 	return nil
 }
@@ -774,6 +924,166 @@ func findStringIndex(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+// generateAndroidKeystore gera um keystore para assinar o APK Android
+func generateAndroidKeystore(androidPath string, projectConfig *config.ProjectConfig) error {
+	keystorePath := filepath.Join(androidPath, "app", "keystore.jks")
+	keystorePropsPath := filepath.Join(androidPath, "app", ".keystore.properties")
+
+	// Verificar se keystore já existe
+	if _, err := os.Stat(keystorePath); err == nil {
+		fmt.Println("✓ Keystore já existe, usando o existente")
+		return nil
+	}
+
+	fmt.Println("🔑 Gerando keystore para assinatura Android...")
+
+	// Verificar se keytool está disponível
+	if _, err := exec.LookPath("keytool"); err != nil {
+		return fmt.Errorf("keytool não encontrado. Instale o JDK para gerar keystore")
+	}
+
+	// Valores padrão para o keystore
+	keystoreAlias := "key"
+	keystorePassword := "gaver123"
+	keyPassword := "gaver123"
+	validity := "10000" // ~27 anos
+	commonName := projectConfig.ProjectName
+	if commonName == "" {
+		commonName = "Gaver App"
+	}
+
+	// Gerar keystore
+	keytoolCmd := exec.Command("keytool",
+		"-genkeypair",
+		"-v",
+		"-storetype", "PKCS12",
+		"-keystore", keystorePath,
+		"-alias", keystoreAlias,
+		"-keyalg", "RSA",
+		"-keysize", "2048",
+		"-validity", validity,
+		"-storepass", keystorePassword,
+		"-keypass", keyPassword,
+		"-dname", fmt.Sprintf("CN=%s, OU=Development, O=Gaver, L=Unknown, ST=Unknown, C=BR", commonName),
+	)
+	keytoolCmd.Stdout = os.Stdout
+	keytoolCmd.Stderr = os.Stderr
+
+	if err := keytoolCmd.Run(); err != nil {
+		return fmt.Errorf("erro ao gerar keystore: %w", err)
+	}
+
+	fmt.Println("✓ Keystore gerado com sucesso")
+
+	// Salvar propriedades do keystore em arquivo
+	keystoreProps := fmt.Sprintf(`storeFile=keystore.jks
+storePassword=%s
+keyAlias=%s
+keyPassword=%s
+`, keystorePassword, keystoreAlias, keyPassword)
+
+	if err := os.WriteFile(keystorePropsPath, []byte(keystoreProps), 0600); err != nil {
+		fmt.Printf("⚠️  Aviso: Erro ao salvar .keystore.properties: %v\n", err)
+		fmt.Println("   Você precisará configurar manualmente o build.gradle")
+	} else {
+		fmt.Println("✓ Propriedades do keystore salvas em .keystore.properties")
+	}
+
+	// Configurar build.gradle para usar o keystore
+	buildGradlePath := filepath.Join(androidPath, "app", "build.gradle")
+	if err := configureGradleForSigning(buildGradlePath, keystorePropsPath); err != nil {
+		fmt.Printf("⚠️  Aviso: Erro ao configurar signing no build.gradle: %v\n", err)
+		fmt.Println("   Você precisará configurar manualmente o signing no build.gradle")
+	} else {
+		fmt.Println("✓ build.gradle configurado para usar keystore")
+	}
+
+	return nil
+}
+
+// configureGradleForSigning configura o build.gradle para usar o keystore
+func configureGradleForSigning(buildGradlePath, keystorePropsPath string) error {
+	content, err := os.ReadFile(buildGradlePath)
+	if err != nil {
+		return fmt.Errorf("erro ao ler build.gradle: %w", err)
+	}
+
+	contentStr := string(content)
+
+	// Verificar se já tem signing config
+	if strings.Contains(contentStr, "signingConfigs") {
+		return nil // Já configurado
+	}
+
+	// Ler propriedades do keystore
+	propsContent, err := os.ReadFile(keystorePropsPath)
+	if err != nil {
+		return fmt.Errorf("erro ao ler .keystore.properties: %w", err)
+	}
+
+	// Parsear propriedades
+	props := make(map[string]string)
+	for _, line := range strings.Split(string(propsContent), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			props[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		}
+	}
+
+	storeFile := props["storeFile"]
+	storePassword := props["storePassword"]
+	keyAlias := props["keyAlias"]
+	keyPassword := props["keyPassword"]
+
+	if storeFile == "" || storePassword == "" || keyAlias == "" || keyPassword == "" {
+		return fmt.Errorf("propriedades do keystore incompletas")
+	}
+
+	// Adicionar signing config antes do bloco android
+	signingConfig := fmt.Sprintf(`
+    signingConfigs {
+        release {
+            storeFile file('%s')
+            storePassword '%s'
+            keyAlias '%s'
+            keyPassword '%s'
+        }
+    }
+`, storeFile, storePassword, keyAlias, keyPassword)
+
+	// Procurar bloco android e adicionar signingConfigs
+	if idx := findStringIndex(contentStr, "android {"); idx != -1 {
+		insertPos := idx + len("android {")
+		contentStr = contentStr[:insertPos] + signingConfig + contentStr[insertPos:]
+	} else {
+		return fmt.Errorf("não foi possível encontrar bloco 'android {' no build.gradle")
+	}
+
+	// Adicionar signingConfig ao buildTypes release
+	releaseConfig := `
+        release {
+            signingConfig signingConfigs.release
+        }
+`
+	if strings.Contains(contentStr, "buildTypes {") {
+		// Procurar buildTypes e adicionar release
+		buildTypesIdx := findStringIndex(contentStr, "buildTypes {")
+		if buildTypesIdx != -1 {
+			insertPos := buildTypesIdx + len("buildTypes {")
+			// Verificar se já tem release
+			if !strings.Contains(contentStr[insertPos:], "release {") {
+				contentStr = contentStr[:insertPos] + releaseConfig + contentStr[insertPos:]
+			}
+		}
+	}
+
+	return os.WriteFile(buildGradlePath, []byte(contentStr), 0644)
 }
 
 // generateMainActivity gera o MainActivity.java que inicia o servidor Go

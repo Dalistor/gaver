@@ -13,6 +13,10 @@
     "android:dev": "quasar dev -m capacitor -T android",
     "android:build": "quasar build -m capacitor -T android",
     "android:sync": "cd android && ./gradlew clean && cd .. && quasar capacitor sync android",
+    "ios:dev": "quasar dev -m capacitor -T ios",
+    "ios:build": "quasar build -m capacitor -T ios",
+    "ios:sync": "quasar capacitor sync ios",
+    "mobile:sync": "quasar capacitor sync",
     "add:logo": "quasar ext add @quasar/icon-genie",
     "compile": "quasar build -m capacitor -T android"
   },
@@ -25,6 +29,7 @@
   },
   "devDependencies": {
     "@capacitor/android": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
     "@capacitor/cli": "^6.0.0",
     "@quasar/app-vite": "^2.0.0",
     "eslint": "^8.57.1",

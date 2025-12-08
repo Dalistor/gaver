@@ -139,8 +139,8 @@ type FrontendConfig struct {
 	ServerPort  string
 }
 
-// GenerateAndroidFrontend gera a estrutura frontend para Android
-func GenerateAndroidFrontend(projectName string, projectConfig *config.ProjectConfig) error {
+// GenerateMobileFrontend gera a estrutura frontend para Mobile (Android + iOS)
+func GenerateMobileFrontend(projectName string, projectConfig *config.ProjectConfig) error {
 	gen := templates.New(projectName)
 
 	frontendConfig := FrontendConfig{
@@ -170,7 +170,7 @@ func GenerateAndroidFrontend(projectName string, projectConfig *config.ProjectCo
 	// Gerar arquivos frontend
 	frontendFiles := map[string]string{
 		"quasar_config.tmpl":            "frontend/quasar.config.js",
-		"package_json_android.tmpl":     "frontend/package.json",
+		"package_json_mobile.tmpl":      "frontend/package.json",
 		"capacitor_config.tmpl":         "frontend/capacitor.config.js",
 		"frontend_env.tmpl":             "frontend/.env",
 		"composable_api.tmpl":           "frontend/src/composables/useApi.ts",
@@ -230,11 +230,21 @@ func GenerateAndroidFrontend(projectName string, projectConfig *config.ProjectCo
 
 	// Adicionar plataforma Android
 	fmt.Println("📱 Adicionando plataforma Android...")
-	capacitorAddCmd := exec.Command("npx", "cap", "add", "android")
-	capacitorAddCmd.Stdout = os.Stdout
-	capacitorAddCmd.Stderr = os.Stderr
-	if err := capacitorAddCmd.Run(); err != nil {
+	capacitorAddAndroidCmd := exec.Command("npx", "cap", "add", "android")
+	capacitorAddAndroidCmd.Stdout = os.Stdout
+	capacitorAddAndroidCmd.Stderr = os.Stderr
+	if err := capacitorAddAndroidCmd.Run(); err != nil {
 		fmt.Println("⚠️  Aviso: Erro ao adicionar Android. Execute 'npx cap add android' manualmente se necessário.")
+	}
+
+	// Adicionar plataforma iOS
+	fmt.Println("🍎 Adicionando plataforma iOS...")
+	capacitorAddIOSCmd := exec.Command("npx", "cap", "add", "ios")
+	capacitorAddIOSCmd.Stdout = os.Stdout
+	capacitorAddIOSCmd.Stderr = os.Stderr
+	if err := capacitorAddIOSCmd.Run(); err != nil {
+		fmt.Println("⚠️  Aviso: Erro ao adicionar iOS. Execute 'npx cap add ios' manualmente se necessário.")
+		fmt.Println("   Nota: iOS requer macOS e Xcode instalado.")
 	}
 
 	// Voltar para diretório original

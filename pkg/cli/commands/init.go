@@ -18,14 +18,14 @@ func NewInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [nome-do-projeto] -d [tipo-de-banco] -t [tipo-de-projeto]",
 		Short: "Inicializa um novo projeto Gaver",
-		Long:  "Cria um novo projeto Gaver com a estrutura de diretórios e arquivos padrão.\nTipos de projeto: server (padrão), android, desktop, web",
+		Long:  "Cria um novo projeto Gaver com a estrutura de diretórios e arquivos padrão.\nTipos de projeto: server (padrão), mobile, desktop, web",
 		Args:  cobra.ExactArgs(1),
 		RunE:  run_init,
 	}
 
 	// Adicionar flags
 	cmd.Flags().StringP("database", "d", "mysql", "Tipo de banco (postgres, mysql, sqlite)")
-	cmd.Flags().StringP("type", "t", "server", "Tipo de projeto (server, android, desktop, web)")
+	cmd.Flags().StringP("type", "t", "server", "Tipo de projeto (server, mobile, desktop, web)")
 
 	return cmd
 }
@@ -37,7 +37,12 @@ func run_init(cmd *cobra.Command, args []string) error {
 
 	// Validar tipo de projeto
 	if !config.IsValidProjectType(projectType) {
-		return fmt.Errorf("tipo de projeto inválido: %s. Use: server, android, desktop ou web", projectType)
+		return fmt.Errorf("tipo de projeto inválido: %s. Use: server, mobile, desktop ou web", projectType)
+	}
+
+	// Converter "android" antigo para "mobile" (compatibilidade)
+	if projectType == "android" {
+		projectType = "mobile"
 	}
 
 	fmt.Printf("Inicializando projeto: %s (tipo: %s)...\n", projectName, projectType)
@@ -58,9 +63,9 @@ func run_init(cmd *cobra.Command, args []string) error {
 
 	// Gerar arquivos específicos do tipo
 	switch config.ProjectType(projectType) {
-	case config.ProjectTypeAndroid:
-		if err := setupAndroidProject(projectName, projectConfig); err != nil {
-			return fmt.Errorf("erro ao configurar projeto Android: %w", err)
+	case config.ProjectTypeMobile:
+		if err := setupMobileProject(projectName, projectConfig); err != nil {
+			return fmt.Errorf("erro ao configurar projeto Mobile: %w", err)
 		}
 	case config.ProjectTypeDesktop:
 		if err := setupDesktopProject(projectName, projectConfig); err != nil {
@@ -106,8 +111,8 @@ func run_init(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func setupAndroidProject(projectName string, projectConfig *config.ProjectConfig) error {
-	fmt.Println("Configurando projeto Android...")
+func setupMobileProject(projectName string, projectConfig *config.ProjectConfig) error {
+	fmt.Println("Configurando projeto Mobile...")
 
 	// Verificar se gomobile está instalado
 	if _, err := exec.LookPath("gomobile"); err != nil {
@@ -121,9 +126,9 @@ func setupAndroidProject(projectName string, projectConfig *config.ProjectConfig
 		fmt.Println("✓ gomobile instalado")
 	}
 
-	// Gerar estrutura frontend Android
-	if err := structure.GenerateAndroidFrontend(projectName, projectConfig); err != nil {
-		return fmt.Errorf("erro ao gerar frontend Android: %w", err)
+	// Gerar estrutura frontend Mobile (Android + iOS)
+	if err := structure.GenerateMobileFrontend(projectName, projectConfig); err != nil {
+		return fmt.Errorf("erro ao gerar frontend Mobile: %w", err)
 	}
 
 	return nil
