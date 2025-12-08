@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -926,6 +927,69 @@ func findStringIndex(s, substr string) int {
 	return -1
 }
 
+// readInput lê uma linha de input do usuário
+func readInput(prompt string, defaultValue string) string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(prompt)
+	if defaultValue != "" {
+		fmt.Printf(" [%s]: ", defaultValue)
+	} else {
+		fmt.Print(": ")
+	}
+	
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	
+	if input == "" && defaultValue != "" {
+		return defaultValue
+	}
+	return input
+}
+
+// readPassword lê uma senha do usuário
+// Nota: Por simplicidade, a senha será visível durante a digitação
+func readPassword(prompt string) (string, error) {
+	if runtime.GOOS == "windows" {
+		fmt.Printf("%s (será visível): ", prompt)
+	} else {
+		fmt.Printf("%s: ", prompt)
+	}
+	
+	reader := bufio.NewReader(os.Stdin)
+	password, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(password), nil
+}
+
+// readPasswordConfirm lê uma senha e pede confirmação
+func readPasswordConfirm(prompt string) (string, error) {
+	for {
+		password, err := readPassword(prompt)
+		if err != nil {
+			return "", err
+		}
+		
+		if password == "" {
+			fmt.Println("⚠️  Senha não pode estar vazia. Tente novamente.")
+			continue
+		}
+		
+		confirm, err := readPassword("Confirme a senha")
+		if err != nil {
+			return "", err
+		}
+		
+		if password != confirm {
+			fmt.Println("⚠️  As senhas não coincidem. Tente novamente.")
+			continue
+		}
+		
+		return password, nil
+	}
+}
+
 // generateAndroidKeystore gera um keystore para assinar o APK Android
 func generateAndroidKeystore(androidPath string, projectConfig *config.ProjectConfig) error {
 	keystorePath := filepath.Join(androidPath, "app", "keystore.jks")
@@ -937,22 +1001,87 @@ func generateAndroidKeystore(androidPath string, projectConfig *config.ProjectCo
 		return nil
 	}
 
-	fmt.Println("🔑 Gerando keystore para assinatura Android...")
+	fmt.Println("\n🔑 Gerando keystore para assinatura Android...")
+	fmt.Println("Por favor, forneça as informações para gerar o keystore:\n")
 
 	// Verificar se keytool está disponível
 	if _, err := exec.LookPath("keytool"); err != nil {
 		return fmt.Errorf("keytool não encontrado. Instale o JDK para gerar keystore")
 	}
 
-	// Valores padrão para o keystore
-	keystoreAlias := "key"
-	keystorePassword := "gaver123"
-	keyPassword := "gaver123"
-	validity := "10000" // ~27 anos
-	commonName := projectConfig.ProjectName
-	if commonName == "" {
-		commonName = "Gaver App"
+	// Perguntar dados ao usuário
+	defaultCommonName := projectConfig.ProjectName
+	if defaultCommonName == "" {
+		defaultCommonName = "Gaver App"
 	}
+	
+	commonName := readInput("Nome da organização (CN)", defaultCommonName)
+	organizationUnit := readInput("Unidade organizacional (OU)", "Development")
+	organization := readInput("Organização (O)", "Gaver")
+	city := readInput("Cidade (L)", "Unknown")
+	state := readInput("Estado/Província (ST)", "Unknown")
+	country := readInput("País (código de 2 letras, ex: BR)", "BR")
+	
+	keystoreAlias := readInput("Alias da chave", "key")
+	
+	// Validação do alias
+	if keystoreAlias == "" {
+		keystoreAlias = "key"
+	}
+	
+	// Pedir senhas
+	fmt.Println("\n⚠️  IMPORTANTE: Guarde essas senhas com segurança!")
+	fmt.Println("   Se você perder a senha do keystore, não poderá atualizar o app na Play Store.\n")
+	
+	keystorePassword, err := readPasswordConfirm("Senha do keystore")
+	if err != nil {
+		return fmt.Errorf("erro ao ler senha do keystore: %w", err)
+	}
+	
+	// Perguntar se quer usar a mesma senha para a chave
+	fmt.Print("\nUsar a mesma senha para a chave? (S/n): ")
+	reader := bufio.NewReader(os.Stdin)
+	useSamePassword, _ := reader.ReadString('\n')
+	useSamePassword = strings.TrimSpace(strings.ToLower(useSamePassword))
+	
+	var keyPassword string
+	if useSamePassword == "" || useSamePassword == "s" || useSamePassword == "sim" || useSamePassword == "y" || useSamePassword == "yes" {
+		keyPassword = keystorePassword
+	} else {
+		keyPassword, err = readPasswordConfirm("Senha da chave")
+		if err != nil {
+			return fmt.Errorf("erro ao ler senha da chave: %w", err)
+		}
+	}
+	
+	validity := readInput("Validade em dias (padrão: 10000 = ~27 anos)", "10000")
+	if validity == "" {
+		validity = "10000"
+	}
+
+	// Montar Distinguished Name
+	dname := fmt.Sprintf("CN=%s, OU=%s, O=%s, L=%s, ST=%s, C=%s",
+		commonName, organizationUnit, organization, city, state, country)
+	
+	fmt.Printf("\n📋 Resumo da configuração:\n")
+	fmt.Printf("   CN (Nome): %s\n", commonName)
+	fmt.Printf("   OU (Unidade): %s\n", organizationUnit)
+	fmt.Printf("   O (Organização): %s\n", organization)
+	fmt.Printf("   L (Cidade): %s\n", city)
+	fmt.Printf("   ST (Estado): %s\n", state)
+	fmt.Printf("   C (País): %s\n", country)
+	fmt.Printf("   Alias: %s\n", keystoreAlias)
+	fmt.Printf("   Validade: %s dias\n", validity)
+	fmt.Print("\nGerar keystore com essas informações? (S/n): ")
+	
+	confirm, _ := reader.ReadString('\n')
+	confirm = strings.TrimSpace(strings.ToLower(confirm))
+	
+	if confirm != "" && confirm != "s" && confirm != "sim" && confirm != "y" && confirm != "yes" {
+		return fmt.Errorf("geração de keystore cancelada pelo usuário")
+	}
+	
+	fmt.Println("\n🔑 Gerando keystore...")
 
 	// Gerar keystore
 	keytoolCmd := exec.Command("keytool",
@@ -966,7 +1095,7 @@ func generateAndroidKeystore(androidPath string, projectConfig *config.ProjectCo
 		"-validity", validity,
 		"-storepass", keystorePassword,
 		"-keypass", keyPassword,
-		"-dname", fmt.Sprintf("CN=%s, OU=Development, O=Gaver, L=Unknown, ST=Unknown, C=BR", commonName),
+		"-dname", dname,
 	)
 	keytoolCmd.Stdout = os.Stdout
 	keytoolCmd.Stderr = os.Stderr
