@@ -1,7 +1,9 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -304,6 +306,45 @@ func waitForServer(port string, maxAttempts int) error {
 	return fmt.Errorf("servidor não respondeu após %d tentativas", maxAttempts)
 }
 
+// readCapacitorAppID lê o app ID do capacitor.config.json ou capacitor.config.js
+func readCapacitorAppID(frontendPath string) string {
+	// Tentar capacitor.config.json primeiro
+	configPath := filepath.Join(frontendPath, "capacitor.config.json")
+	if data, err := os.ReadFile(configPath); err == nil {
+		var config struct {
+			AppID string `json:"appId"`
+		}
+		if err := json.Unmarshal(data, &config); err == nil && config.AppID != "" {
+			return config.AppID
+		}
+	}
+
+	// Tentar capacitor.config.js como fallback
+	configPathJS := filepath.Join(frontendPath, "capacitor.config.js")
+	if data, err := os.ReadFile(configPathJS); err == nil {
+		content := string(data)
+		// Procurar por appId: "..." ou appId: '...'
+		lines := strings.Split(content, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.Contains(line, "appId") {
+				// Extrair valor entre aspas
+				if idx := strings.Index(line, `"`); idx != -1 {
+					start := idx + 1
+					if end := strings.Index(line[start:], `"`); end != -1 {
+						appID := line[start : start+end]
+						if appID != "" {
+							return appID
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
 func runMobile(projectConfig *config.ProjectConfig, openStudio bool, platform string, enableCGO bool) error {
 	fmt.Println("🚀 Iniciando servidor Go e Quasar dev server...")
 	fmt.Println("Use Ctrl+C para parar os servidores")
@@ -387,15 +428,77 @@ func runMobile(projectConfig *config.ProjectConfig, openStudio bool, platform st
 	}
 	fmt.Println("✓ Servidor Go está pronto")
 
+	// Verificar se o diretório android existe antes de iniciar Quasar
+	if platform == "android" {
+		androidPath := filepath.Join(frontendPath, "android")
+		if _, err := os.Stat(androidPath); os.IsNotExist(err) {
+			goServer.Process.Kill()
+			return fmt.Errorf("diretório android não encontrado. Execute 'npx cap add android' primeiro no diretório frontend")
+		}
+	}
+
+	// Tentar ler app ID do capacitor.config.json para passar automaticamente
+	appID := readCapacitorAppID(frontendPath)
+	if appID != "" {
+		fmt.Printf("📱 App ID detectado: %s\n", appID)
+		fmt.Println("ℹ️  O Quasar será configurado automaticamente com este app ID")
+	} else {
+		fmt.Println("ℹ️  App ID não encontrado no capacitor.config.json")
+		fmt.Println("ℹ️  O Quasar pode perguntar sobre o app ID - pressione Enter para usar o padrão")
+	}
+
 	// Iniciar Quasar dev server
+	fmt.Printf("🚀 Iniciando Quasar dev server para %s...\n", platform)
 	quasarCmd := exec.Command("npx", "quasar", "dev", "-m", "capacitor", "-T", platform)
 	quasarCmd.Dir = frontendPath
 	quasarCmd.Stdout = os.Stdout
 	quasarCmd.Stderr = os.Stderr
 
-	if err := quasarCmd.Start(); err != nil {
+	// Criar pipe para stdin se tivermos app ID
+	var stdinPipe io.WriteCloser
+	if appID != "" {
+		var err error
+		stdinPipe, err = quasarCmd.StdinPipe()
+		if err == nil {
+			quasarCmd.Stdin = nil // Não usar os.Stdin quando temos pipe
+		} else {
+			// Se falhar ao criar pipe, usar stdin normal
+			quasarCmd.Stdin = os.Stdin
+			stdinPipe = nil
+		}
+	} else {
+		quasarCmd.Stdin = os.Stdin // Permitir entrada interativa
+	}
+
+	fmt.Printf("📂 Diretório: %s\n", frontendPath)
+	fmt.Printf("🔧 Comando: npx quasar dev -m capacitor -T %s\n", platform)
+	fmt.Println("ℹ️  Aguarde o Quasar compilar e iniciar...")
+
+	// Iniciar Quasar em goroutine para não bloquear
+	quasarErrChan := make(chan error, 1)
+	go func() {
+		if stdinPipe != nil {
+			// Aguardar mais tempo para o Quasar fazer a pergunta
+			// O Quasar geralmente pergunta após alguns segundos
+			time.Sleep(3 * time.Second)
+			// Enviar o app ID automaticamente
+			io.WriteString(stdinPipe, appID+"\n")
+			stdinPipe.Close()
+		}
+		quasarErrChan <- quasarCmd.Run()
+	}()
+
+	// Aguardar um pouco para verificar se há erro imediato
+	time.Sleep(500 * time.Millisecond)
+	select {
+	case err := <-quasarErrChan:
+		// Quasar terminou muito rápido, provavelmente erro
 		goServer.Process.Kill()
-		return fmt.Errorf("erro ao iniciar Quasar dev server: %w", err)
+		return fmt.Errorf("Quasar dev server terminou com erro: %w", err)
+	default:
+		// Quasar ainda está rodando, tudo OK
+		fmt.Println("✓ Quasar dev server iniciado")
+		fmt.Println("ℹ️  O Quasar pode levar alguns segundos para compilar pela primeira vez")
 	}
 
 	// Se flag --studio, abrir Android Studio ou Xcode
@@ -426,18 +529,27 @@ func runMobile(projectConfig *config.ProjectConfig, openStudio bool, platform st
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// Esperar por sinal
-	<-sigChan
-	fmt.Println("\n\n🛑 Parando servidores...")
-
-	if goServer.Process != nil {
-		goServer.Process.Kill()
+	// Esperar por sinal ou erro do Quasar
+	select {
+	case <-sigChan:
+		fmt.Println("\n\n🛑 Parando servidores...")
+		if goServer.Process != nil {
+			goServer.Process.Kill()
+		}
+		if quasarCmd.Process != nil {
+			quasarCmd.Process.Kill()
+		}
+		return nil
+	case err := <-quasarErrChan:
+		// Quasar terminou (pode ser erro ou término normal)
+		if err != nil {
+			fmt.Printf("\n⚠️  Quasar dev server terminou: %v\n", err)
+		}
+		if goServer.Process != nil {
+			goServer.Process.Kill()
+		}
+		return err
 	}
-	if quasarCmd.Process != nil {
-		quasarCmd.Process.Kill()
-	}
-
-	return nil
 }
 
 func runDesktop(projectConfig *config.ProjectConfig, enableCGO bool) error {

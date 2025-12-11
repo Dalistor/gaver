@@ -94,10 +94,23 @@ func run_init(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✓ Arquivos iniciais gerados")
 
+	// Executar go mod tidy no diretório do projeto
+	fmt.Println("\n📦 Executando go mod tidy...")
+	projectPath := filepath.Join(".", projectName)
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Dir = projectPath
+	tidyCmd.Stdout = os.Stdout
+	tidyCmd.Stderr = os.Stderr
+	if err := tidyCmd.Run(); err != nil {
+		fmt.Printf("⚠️  Aviso: Erro ao executar 'go mod tidy': %v\n", err)
+		fmt.Println("   Execute manualmente: cd", projectName, "&& go mod tidy")
+	} else {
+		fmt.Println("✓ go mod tidy executado com sucesso")
+	}
+
 	fmt.Printf("\n✓ Projeto '%s' inicializado com sucesso!\n\n", projectName)
 	fmt.Println("Próximos passos:")
 	fmt.Printf("  cd %s\n", projectName)
-	fmt.Println("  go mod tidy")
 
 	// Nota: npm install já foi executado automaticamente para projetos com frontend
 	if projectType == "server" {

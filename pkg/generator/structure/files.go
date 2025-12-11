@@ -438,6 +438,55 @@ func GenerateMobileFrontend(projectName string, projectConfig *config.ProjectCon
 	// Não testar com Node.js pois o arquivo usa ESM (import/export)
 	// O Capacitor vai validar quando tentar usar
 
+	// Criar diretório dist com index.html básico para o Capacitor sincronizar
+	// O diretório será populado quando o Quasar fizer o build
+	distPath := "dist"
+	if _, err := os.Stat(distPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(distPath, 0755); err == nil {
+			fmt.Println("📁 Criando diretório dist com index.html básico...")
+
+			// Criar um index.html básico para o Capacitor poder sincronizar
+			indexHTML := `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading...</title>
+</head>
+<body>
+    <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+        <p>Carregando aplicação...</p>
+    </div>
+</body>
+</html>`
+
+			indexPath := filepath.Join(distPath, "index.html")
+			if err := os.WriteFile(indexPath, []byte(indexHTML), 0644); err == nil {
+				fmt.Println("   ✓ index.html criado (será substituído no primeiro build)")
+			}
+		}
+	} else {
+		// Se o diretório já existe, verificar se tem index.html
+		indexPath := filepath.Join(distPath, "index.html")
+		if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+			// Criar index.html se não existir
+			indexHTML := `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading...</title>
+</head>
+<body>
+    <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+        <p>Carregando aplicação...</p>
+    </div>
+</body>
+</html>`
+			os.WriteFile(indexPath, []byte(indexHTML), 0644)
+		}
+	}
+
 	// Adicionar plataforma Android
 	fmt.Println("📱 Adicionando plataforma Android...")
 	capacitorAddAndroidCmd := exec.Command("npx", "cap", "add", "android")
@@ -449,10 +498,26 @@ func GenerateMobileFrontend(projectName string, projectConfig *config.ProjectCon
 		fmt.Println("   - capacitor.config.json tem sintaxe inválida")
 		fmt.Println("   - Capacitor não está instalado corretamente")
 		fmt.Println("   - Verifique o arquivo capacitor.config.json manualmente")
+	} else {
+		// Sincronizar plugins após adicionar a plataforma para gerar capacitor.plugins.json
+		fmt.Println("🔄 Sincronizando plugins do Capacitor...")
+		capacitorSyncCmd := exec.Command("npx", "cap", "sync", "android")
+		capacitorSyncCmd.Stdout = os.Stdout
+		capacitorSyncCmd.Stderr = os.Stderr
+		if err := capacitorSyncCmd.Run(); err != nil {
+			fmt.Println("⚠️  Aviso: Erro ao sincronizar plugins. Execute 'npx cap sync android' manualmente se necessário.")
+		} else {
+			fmt.Println("✓ Plugins sincronizados")
+		}
 	}
 
 	// Adicionar plataforma iOS (apenas no macOS)
 	if runtime.GOOS == "darwin" {
+		// Garantir que o diretório dist existe (já deve existir do passo anterior, mas verificar novamente)
+		if _, err := os.Stat(distPath); os.IsNotExist(err) {
+			os.MkdirAll(distPath, 0755)
+		}
+
 		fmt.Println("🍎 Adicionando plataforma iOS...")
 		capacitorAddIOSCmd := exec.Command("npx", "cap", "add", "ios")
 		capacitorAddIOSCmd.Stdout = os.Stdout
@@ -462,6 +527,16 @@ func GenerateMobileFrontend(projectName string, projectConfig *config.ProjectCon
 			fmt.Println("   Certifique-se de que o Xcode está instalado.")
 		} else {
 			fmt.Println("✓ Plataforma iOS adicionada")
+			// Sincronizar plugins após adicionar a plataforma para gerar capacitor.plugins.json
+			fmt.Println("🔄 Sincronizando plugins do Capacitor...")
+			capacitorSyncCmd := exec.Command("npx", "cap", "sync", "ios")
+			capacitorSyncCmd.Stdout = os.Stdout
+			capacitorSyncCmd.Stderr = os.Stderr
+			if err := capacitorSyncCmd.Run(); err != nil {
+				fmt.Println("⚠️  Aviso: Erro ao sincronizar plugins. Execute 'npx cap sync ios' manualmente se necessário.")
+			} else {
+				fmt.Println("✓ Plugins sincronizados")
+			}
 		}
 	} else {
 		fmt.Println("ℹ️  iOS não será adicionado automaticamente")

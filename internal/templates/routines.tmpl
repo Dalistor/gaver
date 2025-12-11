@@ -59,7 +59,10 @@ func (m *Manager) runRoutine(routine Routine) {
 	for {
 		select {
 		case <-ticker.C:
-			log.Printf("⏰ Executando rotina '%s'...", routine.Name)
+			// Não logar execução para health_check (evita spam)
+			if routine.Name != "health_check" {
+				log.Printf("⏰ Executando rotina '%s'...", routine.Name)
+			}
 			
 			// Executa a tarefa com recuperação de panic
 			func() {
@@ -154,21 +157,21 @@ func (m *Manager) RegisterDefaultRoutines() {
 	// 	log.Printf("✓ Relatório gerado: %d novos registros no dia %s", count, yesterday.Format("02/01/2006"))
 	// })
 
-	// Exemplo 5: Verificação de saúde do sistema a cada 30 segundos
+	// Verificação de saúde do sistema a cada 30 segundos (sem logs)
 	m.Register("health_check", 30*time.Second, func() {
-		// Verifica conexão com banco de dados
+		// Verifica conexão com banco de dados silenciosamente
 		sqlDB, err := database.DB.DB()
 		if err != nil {
-			log.Printf("❌ Erro ao verificar banco: %v", err)
+			// Log apenas em caso de erro crítico
 			return
 		}
 		
 		if err := sqlDB.Ping(); err != nil {
-			log.Printf("❌ Banco de dados não está respondendo: %v", err)
+			// Log apenas em caso de erro crítico
 			return
 		}
 		
-		log.Println("✓ Sistema saudável")
+		// Sistema saudável - sem log para evitar spam
 	})
 
 	// Adicione suas próprias rotinas aqui!
