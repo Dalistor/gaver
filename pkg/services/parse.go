@@ -17,10 +17,12 @@ func Parse(initCommand *types.InitCommand) error {
 	case "postgres":
 		removeFilesWithExtension(initCommand.Name, ".tmplt_mysql")
 		removeFilesWithExtension(initCommand.Name, ".tmplt_sqlite")
+		removeFilesWithExtension(initCommand.Name, ".db")
 		downloadSQLDriver("postgres")
 	case "mysql":
 		removeFilesWithExtension(initCommand.Name, ".tmplt_postgres")
 		removeFilesWithExtension(initCommand.Name, ".tmplt_sqlite")
+		removeFilesWithExtension(initCommand.Name, ".db")
 		downloadSQLDriver("mysql")
 	case "sqlite":
 		removeFilesWithExtension(initCommand.Name, ".tmplt_mysql")
@@ -91,6 +93,11 @@ func Parse(initCommand *types.InitCommand) error {
 		return fmt.Errorf("erro ao setar arquivo module: %w", err)
 	}
 	fmt.Println("Arquivo module setado com sucesso")
+
+	// Remover pasta .git
+	if err := removeDotGitFolder(initCommand.Name); err != nil {
+		return fmt.Errorf("erro ao remover pasta .git: %w", err)
+	}
 
 	return nil
 }
@@ -191,5 +198,10 @@ func setGaverModuleFile(initCommand *types.InitCommand) error {
 
 	os.WriteFile(fmt.Sprintf("%s/gaverModule.json", initCommand.Name), jsonData, 0644)
 
+	return nil
+}
+
+func removeDotGitFolder(folder string) error {
+	os.RemoveAll(fmt.Sprintf("%s/.git", folder))
 	return nil
 }
