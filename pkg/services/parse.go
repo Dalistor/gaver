@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,6 +28,15 @@ func Parse(initCommand *types.InitCommand) error {
 		downloadSQLDriver("sqlite")
 	}
 
+	switch initCommand.ProjectType {
+	case "api", "web", "desktop":
+		removeFilesWithExtension(initCommand.Name, ".tmplt_desktop_yml")
+		removeFilesWithExtension(initCommand.Name, ".tmplt_mobile_yml")
+	case "mobile":
+		removeFilesWithExtension(initCommand.Name, ".tmplt_desktop_yml")
+		removeFilesWithExtension(initCommand.Name, ".tmplt_api_yml")
+	}
+
 	// Percorrer todas as pastas e arquivos do projeto e parsear arquivos com extensão .tmplt
 	filepath.Walk(initCommand.Name, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -36,50 +46,56 @@ func Parse(initCommand *types.InitCommand) error {
 			return nil
 		}
 
-		if strings.Contains(info.Name(), ".") {
-			extension := strings.Split(info.Name(), ".")[1]
-			switch extension {
-			case "tmplt":
-				return parseFile(path, ".tmplt", ".go", map[string]string{
-					"ProjectModuleName": initCommand.Name,
-				})
-			case "mod":
-				return parseFile(path, ".mod", ".mod", map[string]string{
-					"ProjectModuleName": initCommand.Name,
-				})
-			case "tmplt_mysql":
-				return parseFile(path, ".tmplt_mysql", ".go", map[string]string{
-					"ProjectModuleName": initCommand.Name,
-				})
-			case "tmplt_postgres":
-				return parseFile(path, ".tmplt_postgres", ".go", map[string]string{
-					"ProjectModuleName": initCommand.Name,
-				})
-			case "tmplt_sqlite":
-				return parseFile(path, ".tmplt_sqlite", ".go", map[string]string{
-					"ProjectModuleName": initCommand.Name,
-				})
-			default:
-				return nil
-			}
+		fileName := info.Name()
+		vars := map[string]string{
+			"ProjectModuleName": initCommand.Name,
 		}
 
-		return nil
+		// Verificar extensões compostas primeiro (ordem importa)
+		switch {
+		case strings.HasSuffix(fileName, ".tmplt_desktop_yml"):
+			return parseFile(path, ".tmplt_desktop_yml", ".yml", vars)
+		case strings.HasSuffix(fileName, ".tmplt_mobile_yml"):
+			return parseFile(path, ".tmplt_mobile_yml", ".yml", vars)
+		case strings.HasSuffix(fileName, ".tmplt_api_yml"):
+			return parseFile(path, ".tmplt_api_yml", ".yml", vars)
+		case strings.HasSuffix(fileName, ".tmplt_yml"):
+			return parseFile(path, ".tmplt_yml", ".yml", vars)
+		case strings.HasSuffix(fileName, ".tmplt_yaml"):
+			return parseFile(path, ".tmplt_yaml", ".yaml", vars)
+		case strings.HasSuffix(fileName, ".tmplt_mysql"):
+			return parseFile(path, ".tmplt_mysql", ".go", vars)
+		case strings.HasSuffix(fileName, ".tmplt_postgres"):
+			return parseFile(path, ".tmplt_postgres", ".go", vars)
+		case strings.HasSuffix(fileName, ".tmplt_sqlite"):
+			return parseFile(path, ".tmplt_sqlite", ".go", vars)
+		case strings.HasSuffix(fileName, ".tmplt"):
+			return parseFile(path, ".tmplt", ".go", vars)
+		case strings.HasSuffix(fileName, ".mod"):
+			return parseFile(path, ".mod", ".mod", vars)
+		default:
+			return nil
+		}
 	})
 
 	// Sincronizar arquivo mod
 	fmt.Println("Sincronizando arquivo mod")
-	if err := syncModFile(); err != nil {
+	if err := syncModFile(initCommand.Database, initCommand.Name); err != nil {
 		return fmt.Errorf("erro ao sincronizar arquivo mod: %w", err)
 	}
 	fmt.Println("Arquivo mod sincronizado com sucesso")
+
+	// Setar arquivo module
+	fmt.Println("Setando arquivo module")
+	if err := setGaverModuleFile(initCommand); err != nil {
+		return fmt.Errorf("erro ao setar arquivo module: %w", err)
+	}
+	fmt.Println("Arquivo module setado com sucesso")
 
 	return nil
 }
 
 func parseFile(filePath string, oldExt string, newExt string, vars map[string]string) error {
-	fmt.Println("Parseando arquivo:", filePath)
-
 	// Ler dados do arquivo
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
@@ -142,11 +158,38 @@ func downloadSQLDriver(sqlType string) error {
 	return nil
 }
 
-func syncModFile() error {
-	err := exec.Command("go", "mod", "tidy").Run()
-	if err != nil {
+func syncModFile(database string, folder string) error {
+	os.Chdir(folder)
+
+	if err := exec.Command("go", "get", fmt.Sprintf("gorm.io/driver/%s", database)).Run(); err != nil {
 		return fmt.Errorf("erro ao sincronizar arquivo mod: %w", err)
 	}
+
+	if err := exec.Command("go", "mod", "tidy").Run(); err != nil {
+		return fmt.Errorf("erro ao sincronizar arquivo mod: %w", err)
+	}
+
+	os.Chdir("..")
+
+	return nil
+}
+
+func setGaverModuleFile(initCommand *types.InitCommand) error {
+	moduleFile := &types.GaverModuleFile{
+		Type:                initCommand.ProjectType,
+		ProjectName:         initCommand.Name,
+		ProjectVersion:      "1.0.0",
+		ProjectModules:      []string{},
+		ProjectDatabaseType: initCommand.Database,
+		MigrationTag:        0,
+	}
+
+	jsonData, err := json.Marshal(moduleFile)
+	if err != nil {
+		return fmt.Errorf("erro ao serializar arquivo module: %w", err)
+	}
+
+	os.WriteFile(fmt.Sprintf("%s/gaverModule.json", initCommand.Name), jsonData, 0644)
 
 	return nil
 }
