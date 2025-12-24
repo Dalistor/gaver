@@ -29,4 +29,6 @@ func (c *CLI) Execute() error {
 func (c *CLI) registerCommands(cmd *cobra.Command) {
 	cmd.AddCommand(commands.NewInitCommand())
 	cmd.AddCommand(commands.NewServeCommand())
+	cmd.AddCommand(commands.NewMakeMigrationsCommand())
+	cmd.AddCommand(commands.NewMigrateCommand())
 }

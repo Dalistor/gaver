@@ -34,13 +34,13 @@ func initCommand(cmd *cobra.Command, args []string) error {
 	initCommand.Database = cmd.Flag("database").Value.String()
 	initCommand.ProjectType = cmd.Flag("project-type").Value.String()
 
-	if err := validation(initCommand); err != nil {
+	if err := validateInitCommand(initCommand); err != nil {
 		return fmt.Errorf("erro ao validar o comando init: %w. \n\nUse --help para mais informações.", err)
 	}
 
 	// fazer download do template
 	fmt.Println("Fazendo download do template")
-	if err := services.Download(initCommand); err != nil {
+	if err := services.Download(initCommand, nil); err != nil {
 		return fmt.Errorf("erro ao fazer download do template: %w", err)
 	}
 	fmt.Println("Template baixado com sucesso")
@@ -59,7 +59,7 @@ func initCommand(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func validation(initCommand *types.InitCommand) error {
+func validateInitCommand(initCommand *types.InitCommand) error {
 	if initCommand.Name == "" {
 		return fmt.Errorf("nome do projeto é obrigatório")
 	}
