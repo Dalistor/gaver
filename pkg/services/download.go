@@ -4,36 +4,33 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Dalistor/gaver/pkg/types"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 )
 
-func Download(initCommand *types.InitCommand, moduleCommand *types.GaverModuleFile) error {
-	if initCommand != nil {
-		switch initCommand.ProjectType {
-		case "api":
-			return downloadAPITemplate(initCommand)
-		}
+func DownloadAPI(mode string, name string) error {
+	switch mode {
+	case "api":
+		return downloadAPITemplate(name)
+	case "module":
+		return downloadModuleTemplate(name)
 	}
 
-	if moduleCommand != nil {
-		downloadModuleTemplate(moduleCommand)
-	}
-
-	return nil
+	return fmt.Errorf("modo inválido")
 }
 
-func downloadAPITemplate(initCommand *types.InitCommand) error {
-	if err := downloadFromGit("https://github.com/Dalistor/Gaver-Modules", "api", initCommand.Name); err != nil {
+func downloadAPITemplate(name string) error {
+	if err := downloadFromGit("https://github.com/Dalistor/Gaver-Modules", "api", name); err != nil {
 		return fmt.Errorf("erro ao baixar template da API: %w", err)
 	}
 
 	return nil
 }
 
-func downloadModuleTemplate(moduleCommand *types.GaverModuleFile) error {
-	if err := downloadFromGit("https://github.com/Dalistor/Gaver-Modules", "module", moduleCommand.ProjectName); err != nil {
+func downloadModuleTemplate(name string) error {
+	path := fmt.Sprintf("modules/%s", name)
+
+	if err := downloadFromGit("https://github.com/Dalistor/Gaver-Modules", "module", path); err != nil {
 		return fmt.Errorf("erro ao baixar template do módulo: %w", err)
 	}
 

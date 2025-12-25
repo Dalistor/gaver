@@ -40,7 +40,7 @@ func initCommand(cmd *cobra.Command, args []string) error {
 
 	// fazer download do template
 	fmt.Println("Fazendo download do template")
-	if err := services.Download(initCommand, nil); err != nil {
+	if err := services.DownloadAPI("api", initCommand.Name); err != nil {
 		return fmt.Errorf("erro ao fazer download do template: %w", err)
 	}
 	fmt.Println("Template baixado com sucesso")

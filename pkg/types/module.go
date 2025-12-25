@@ -7,5 +7,5 @@ type List[T any] struct {
 type ModuleCommand struct {
 	Name       string
 	Type       string
-	Controller List[string]
+	Controller bool
 }
