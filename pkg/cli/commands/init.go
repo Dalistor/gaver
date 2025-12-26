@@ -40,14 +40,14 @@ func initCommand(cmd *cobra.Command, args []string) error {
 
 	// fazer download do template
 	fmt.Println("Fazendo download do template")
-	if err := services.DownloadAPI("api", initCommand.Name); err != nil {
+	if err := services.DownloadTemplate("api", initCommand.Name); err != nil {
 		return fmt.Errorf("erro ao fazer download do template: %w", err)
 	}
 	fmt.Println("Template baixado com sucesso")
 
 	// parsear arquivos
 	fmt.Println("Parseando arquivos")
-	if err := services.Parse(initCommand); err != nil {
+	if err := services.ParseInit(initCommand); err != nil {
 		return fmt.Errorf("erro ao parsear arquivos: %w", err)
 	}
 	fmt.Println("Arquivos parseados com sucesso")

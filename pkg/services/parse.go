@@ -11,7 +11,7 @@ import (
 	"github.com/Dalistor/gaver/pkg/types"
 )
 
-func Parse(initCommand *types.InitCommand) error {
+func ParseInit(initCommand *types.InitCommand) error {
 	// Remover arquivos com extensão .tmplt_mysql, .tmplt_postgres e .tmplt_sqlite não utilizados
 	switch initCommand.Database {
 	case "postgres":
@@ -102,6 +102,75 @@ func Parse(initCommand *types.InitCommand) error {
 	return nil
 }
 
+func ParseModule(moduleCommand *types.ModuleCommand, projectName string) error {
+	modulePath := fmt.Sprintf("modules/%s", moduleCommand.Name)
+
+	// Andar pelos arquivos do módulo e personalizar eles
+	filepath.Walk(modulePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("erro ao percorrer pasta: %w", err)
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		// Remover arquivos que não são necessários para o tipo de módulo e converter para .go
+		var vars = map[string]string{
+			"ProjectModuleName": projectName,
+			"ModuleName":        moduleCommand.Name,
+			"ModelName":         moduleCommand.Controller,
+		}
+
+		fileType := strings.Split(info.Name(), ".")[0]
+
+		if vars["ModelName"] == "" {
+			// Se não houver model name, então é um download genérico de templates
+			switch moduleCommand.Type {
+			case "crud":
+				removeFilesWithExtension(path, ".tmplt_service")
+
+				switch fileType {
+				case "handler":
+					removeFile(path)
+				case "repository":
+					removeFile(path)
+				case "service":
+					removeFile(path)
+				}
+
+				switch {
+				case strings.HasSuffix(info.Name(), ".tmplt_crud"):
+					parseFile(path, ".tmplt_crud", ".go", vars)
+				case strings.HasSuffix(info.Name(), ".tmplt"):
+					parseFile(path, ".tmplt", ".go", vars)
+				}
+
+			case "service":
+				removeFilesWithExtension(path, ".tmplt_crud")
+
+				switch {
+				case strings.HasSuffix(info.Name(), ".tmplt_service"):
+					parseFile(path, ".tmplt_service", ".go", vars)
+				case strings.HasSuffix(info.Name(), ".tmplt"):
+					parseFile(path, ".tmplt", ".go", vars)
+				}
+			}
+		} else {
+			// Se houver model name, então é um download específico de templates CRUD
+			parseFile(path, ".tmplt_crud", ".go", vars)
+
+			// Renomear arquivo models para o nome do model
+			if info.Name() == "models.go" {
+				os.Rename(path, fmt.Sprintf("%s.go", strings.ToLower(vars["ModelName"])))
+			}
+		}
+
+		return nil
+	})
+
+	return nil
+}
+
 func parseFile(filePath string, oldExt string, newExt string, vars map[string]string) error {
 	// Ler dados do arquivo
 	fileContent, err := os.ReadFile(filePath)
@@ -147,22 +216,8 @@ func removeFilesWithExtension(folder string, extension string) error {
 	return nil
 }
 
-func downloadSQLDriver(sqlType string) error {
-	switch sqlType {
-	case "mysql":
-		fmt.Println("Baixando driver de MySQL")
-		exec.Command("go", "get", "gorm.io/driver/mysql").Run()
-	case "postgres":
-		fmt.Println("Baixando driver de PostgreSQL")
-		exec.Command("go", "get", "gorm.io/driver/postgres").Run()
-	case "sqlite":
-		fmt.Println("Baixando driver de SQLite")
-		exec.Command("go", "get", "gorm.io/driver/sqlite").Run()
-	default:
-		return fmt.Errorf("driver de SQL inválido")
-	}
-
-	return nil
+func removeFile(path string) error {
+	return os.Remove(path)
 }
 
 func syncModFile(database string, folder string) error {
